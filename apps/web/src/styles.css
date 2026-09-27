@@ -1,0 +1,39 @@
+@import '@fontsource/atkinson-hyperlegible/400.css';
+@import '@fontsource/atkinson-hyperlegible/700.css';
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif;
+  --color-paper: #f5f6f3;
+  --color-sheet: #ffffff;
+  --color-ink: #1d2533;
+  --color-graphite: #5e6675;
+  --color-rule: #dfe2dc;
+  --color-confirmed: #0e6b66;
+  --color-suggested: #a8641a;
+  --color-observed: #4a4fb3;
+  --color-external: #8a8f99;
+  --color-danger: #b3261e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-paper: #151b25;
+    --color-sheet: #1d2533;
+    --color-ink: #e7eae4;
+    --color-graphite: #a4abb8;
+    --color-rule: #2e3747;
+    --color-confirmed: #3fb3a9;
+    --color-suggested: #e0a458;
+    --color-observed: #8e92f0;
+    --color-external: #9aa0ab;
+    --color-danger: #f2877f;
+  }
+}
+
+html { background: var(--color-paper); color: var(--color-ink); -webkit-text-size-adjust: 100%; }
+body { font-family: var(--font-sans); font-size: 15px; line-height: 1.5; }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--color-observed); outline-offset: 2px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+input, select, textarea { background: var(--color-sheet); color: var(--color-ink); }

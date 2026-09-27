@@ -1,0 +1,47 @@
+# Nightly encrypted backup of the Supabase database (the free plan has no downloadable backups).
+# Encrypted with age to a PUBLIC key; the private key never touches GitHub.
+# Restore: age -d -i pwos-backup.key FILE.sql.gz.age | gunzip > restore.sql
+name: Database backup
+on:
+  schedule:
+    - cron: "30 2 * * *" # daily 02:30 UTC
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PG_MAJOR: "17" # must be >= the Supabase Postgres major version
+    steps:
+      - name: Install pg_dump and age
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common age
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq "postgresql-client-$PG_MAJOR"
+      - name: Dump, verify, encrypt
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          SUPABASE_CA_CERT: ${{ secrets.SUPABASE_CA_CERT }}
+          BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+        run: |
+          set -euo pipefail
+          for v in BACKUP_DATABASE_URL SUPABASE_CA_CERT BACKUP_AGE_RECIPIENT; do test -n "${!v}" || { echo "Missing secret $v"; exit 1; }; done
+          umask 077
+          printf '%s\n' "$SUPABASE_CA_CERT" > ca.crt
+          name="pwos-$(date -u +%Y%m%d-%H%M%S).sql.gz"
+          PGSSLMODE=verify-full PGSSLROOTCERT=ca.crt "/usr/lib/postgresql/$PG_MAJOR/bin/pg_dump" "$BACKUP_DATABASE_URL" \
+            --schema=public --no-owner --no-privileges | gzip > "$name"
+          gzip -t "$name"
+          zcat "$name" | grep -q '_prisma_migrations' || { echo "Dump looks incomplete"; exit 1; }
+          age -r "$BACKUP_AGE_RECIPIENT" -o "$name.age" "$name"
+          shred -u "$name" ca.crt
+          ls -l "$name.age"
+          echo "FILE=$name.age" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.FILE }}
+          path: ${{ env.FILE }}
+          retention-days: 30
+          if-no-files-found: error

@@ -1,0 +1,48 @@
+# Render Blueprint for the Personal Work OS API (free tier).
+# Render → New → Blueprint → select this repository. Secrets marked `sync: false` are
+# entered in the Render dashboard; they are never stored in git.
+# Pick the region closest to your Supabase project (e.g. Supabase us-east-1 → virginia,
+# us-west-1 → oregon, eu-central-1 → frankfurt, ap-southeast-1 → singapore).
+services:
+  - type: web
+    name: personal-work-os-api
+    runtime: node
+    plan: free
+    region: virginia
+    buildCommand: npm ci --include=dev && npx prisma generate && npm run build --workspace @pwos/api
+    startCommand: npm start
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - { key: NODE_VERSION, value: "22" }
+      - { key: NODE_ENV, value: production }
+      # Scheduled jobs come from the external trigger (POST /api/v1/internal/cron/tick).
+      - { key: SCHEDULER_ENABLED, value: "false" }
+      - { key: CRON_SECRET, generateValue: true }
+      # Vercel proxy + Render edge = 2 proxy hops. Verify with the "clientIp" log field.
+      - { key: TRUST_PROXY, value: "2" }
+      - { key: TELEGRAM_MODE, value: webhook }
+      # --- set these in the dashboard (see docs/FREE_TIER_DEPLOYMENT.md) ---
+      - { key: DATABASE_URL, sync: false }
+      - { key: DATABASE_SSL_CA, sync: false }
+      - { key: APP_URL, sync: false }
+      - { key: TOKEN_ENCRYPTION_KEY, sync: false }
+      - { key: ZOHO_CLIENT_ID, sync: false }
+      - { key: ZOHO_CLIENT_SECRET, sync: false }
+      - { key: ZOHO_DATA_CENTER, sync: false }
+      - { key: ZOHO_REDIRECT_URI, sync: false }
+      - { key: GITHUB_TOKEN, sync: false }
+      - { key: AI_PROVIDER, sync: false }
+      - { key: GEMINI_API_KEY, sync: false }
+      - { key: OPENROUTER_API_KEY, sync: false }
+      - { key: TELEGRAM_BOT_TOKEN, sync: false }
+      - { key: TELEGRAM_BOT_USERNAME, sync: false }
+      - { key: TELEGRAM_WEBHOOK_SECRET, sync: false }
+      - { key: SMTP_HOST, sync: false }
+      - { key: SMTP_PORT, sync: false }
+      - { key: SMTP_USER, sync: false }
+      - { key: SMTP_PASSWORD, sync: false }
+      - { key: SMTP_FROM, sync: false }
+      - { key: VAPID_PUBLIC_KEY, sync: false }
+      - { key: VAPID_PRIVATE_KEY, sync: false }
+      - { key: VAPID_SUBJECT, sync: false }

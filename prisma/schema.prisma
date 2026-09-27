@@ -1,0 +1,911 @@
+// Personal Work OS — database schema (Phase 0 ERD)
+//
+// Ownership rule:
+//   * Tables fed by sync (projects, sprints, work_items, calendar_events,
+//     github_*) are READ-ONLY SNAPSHOTS of external systems. Sync writes them;
+//     nothing in the app ever pushes them back out.
+//   * Local user data about external records lives in separate *_local tables
+//     so a sync upsert can never overwrite (or be confused with) local data.
+//   * Everything else is owned by Personal Work OS.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../apps/api/src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────────── Enums ─────────────────────────────
+
+enum TimesheetStatus {
+  DRAFT
+  SUBMITTED
+  LOCKED
+}
+
+enum DayType {
+  WORKDAY
+  LEAVE
+  HOLIDAY
+  HALF_DAY
+}
+
+enum TimeEntrySource {
+  MANUAL
+  CALENDAR
+  TIMER
+  GITHUB_SUGGESTION
+  AI_SUGGESTION
+  IMPORTED
+}
+
+enum ActivityType {
+  DEVELOPMENT
+  TESTING
+  CODE_REVIEW
+  MEETING
+  DOCUMENTATION
+  RESEARCH
+  DEPLOYMENT
+  SUPPORT
+  BUG_FIX
+  PLANNING
+  OTHER
+}
+
+enum TimerStatus {
+  RUNNING
+  PAUSED
+}
+
+enum ExternalProvider {
+  ZOHO
+  GITHUB
+}
+
+enum IntegrationStatus {
+  CONNECTED
+  DISCONNECTED
+  ERROR
+}
+
+enum SprintStatus {
+  UPCOMING
+  ACTIVE
+  COMPLETED
+}
+
+enum CalendarEventStatus {
+  CONFIRMED
+  TENTATIVE
+  CANCELLED
+}
+
+enum SuggestionSource {
+  CALENDAR
+  GITHUB
+  GAP_DETECTION
+  AI
+}
+
+enum SuggestionStatus {
+  PENDING
+  ACCEPTED
+  IGNORED
+}
+
+enum GithubActivityType {
+  COMMIT
+  PULL_REQUEST_OPENED
+  PULL_REQUEST_MERGED
+  REVIEW
+  ISSUE
+}
+
+enum NotificationType {
+  MEETING_REMINDER
+  TOMORROW_SCHEDULE
+  MORNING_SUMMARY
+  TIMESHEET_REMINDER
+  TIMESHEET_CONFIRMATION
+  TIMESHEET_OVERDUE
+  WEEKLY_SUMMARY
+  SPRINT_REPORT_READY
+  SYNC_FAILURE
+  UNLOGGED_WORK
+  JOURNAL_REMINDER
+}
+
+enum NotificationChannel {
+  TELEGRAM
+  EMAIL
+  BROWSER_PUSH
+  IN_APP
+}
+
+enum NotificationStatus {
+  SCHEDULED
+  SENT
+  SKIPPED
+  FAILED
+}
+
+enum DeliveryStatus {
+  SENT
+  FAILED
+}
+
+enum AiProvider {
+  NONE
+  GEMINI
+  OPENROUTER
+  OLLAMA
+}
+
+enum AiDataMode {
+  LOCAL_ONLY
+  MINIMAL_REMOTE
+  FULL_CONTEXT
+}
+
+enum AiConfirmationPolicy {
+  ALWAYS_CONFIRM_WRITES
+  CONFIRM_DANGEROUS_ONLY
+}
+
+enum ToolPermission {
+  READ_ONLY
+  LOCAL_WRITE
+  DANGEROUS_WRITE
+}
+
+enum ActionStatus {
+  PROPOSED
+  AWAITING_CONFIRMATION
+  CONFIRMED
+  CANCELLED
+  EXECUTED
+  FAILED
+}
+
+enum AssistantChannel {
+  WEB
+  TELEGRAM
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  TOOL
+}
+
+enum AuditActor {
+  USER
+  AI
+  SYSTEM
+}
+
+enum LeaveKind {
+  FULL_DAY
+  HALF_DAY
+}
+
+// ───────────────────────────── Users & auth ─────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  timezone     String   @default("UTC")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  settings                UserSettings?
+  sessions                Session[]
+  zohoIntegration         ZohoIntegration?
+  githubIntegration       GithubIntegration?
+  oauthTokens             OAuthToken[]
+  projects                Project[]
+  sprints                 Sprint[]
+  workItems               WorkItem[]
+  calendarEvents          CalendarEvent[]
+  timesheets              DailyTimesheet[]
+  timeEntries             TimeEntry[]
+  timer                   Timer?
+  journalEntries          JournalEntry[]
+  suggestions             WorkSuggestion[]
+  githubRepositories      GithubRepository[]
+  githubActivities        GithubActivity[]
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
+  pushSubscriptions       PushSubscription[]
+  syncStates              SyncState[]
+  conversations           AssistantConversation[]
+  actionLogs              AssistantActionLog[]
+  auditLogs               AuditLog[]
+  holidays                Holiday[]
+  leaveRecords            LeaveRecord[]
+  telegramLink            TelegramLink?
+  telegramLinkTokens      TelegramLinkToken[]
+  aiUsage                 AiUsageDaily[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique // SHA-256 of the cookie value; raw token never stored
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// All times are "HH:mm" in the user's timezone (users.timezone).
+model UserSettings {
+  id     String @id @default(uuid())
+  userId String @unique
+
+  workStartTime        String  @default("09:00")
+  workEndTime          String  @default("18:00")
+  expectedDailyMinutes Int     @default(480)
+  workingDays          Int[]   @default([1, 2, 3, 4, 5]) // ISO weekday, 1 = Monday
+  lunchStart           String?
+  lunchEnd             String?
+  allowTimesheetReopen Boolean @default(true)
+
+  dailyReminderEnabled        Boolean @default(true)
+  dailyReminderTime           String  @default("17:00")
+  confirmationReminderEnabled Boolean @default(true)
+  confirmationReminderTime    String  @default("17:30")
+  tomorrowSummaryEnabled      Boolean @default(true)
+  tomorrowSummaryTime         String  @default("23:00")
+  meetingReminderEnabled      Boolean @default(true)
+  meetingReminderMinutes      Int     @default(15)
+  morningSummaryEnabled       Boolean @default(false)
+  morningSummaryTime          String  @default("08:30")
+
+  notificationChannel         NotificationChannel  @default(TELEGRAM)
+  notificationFallbackChannel NotificationChannel? @default(EMAIL)
+
+  githubSyncEnabled Boolean @default(false)
+  zohoSyncEnabled   Boolean @default(false)
+
+  aiEnabled            Boolean              @default(false)
+  aiProvider           AiProvider           @default(NONE)
+  aiDataMode           AiDataMode           @default(MINIMAL_REMOTE)
+  aiConfirmationPolicy AiConfirmationPolicy @default(ALWAYS_CONFIRM_WRITES)
+  aiDailyRequestLimit  Int                  @default(50)
+  assistantName        String               @default("Work Assistant")
+
+  version   Int      @default(0) // optimistic locking
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+// ───────────────────────────── Integrations ─────────────────────────────
+
+model ZohoIntegration {
+  id            String            @id @default(uuid())
+  userId        String            @unique
+  dataCenter    String // e.g. "com", "eu", "in", "com.au", "jp"
+  accountsUrl   String
+  apiDomain     String
+  portalId      String? // Zoho Projects portal
+  sprintsTeamId String? // Zoho Sprints team
+  status        IntegrationStatus @default(DISCONNECTED)
+  connectedAt   DateTime?
+  lastError     String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("zoho_integrations")
+}
+
+model GithubIntegration {
+  id          String            @id @default(uuid())
+  userId      String            @unique
+  login       String?
+  status      IntegrationStatus @default(DISCONNECTED)
+  connectedAt DateTime?
+  lastError   String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("github_integrations")
+}
+
+// Tokens are encrypted at rest (AES-256-GCM, key from TOKEN_ENCRYPTION_KEY env).
+model OAuthToken {
+  id              String           @id @default(uuid())
+  userId          String
+  provider        ExternalProvider
+  accessTokenEnc  String
+  refreshTokenEnc String?
+  scopes          String[]
+  expiresAt       DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@map("oauth_tokens")
+}
+
+model SyncState {
+  id            String           @id @default(uuid())
+  userId        String
+  provider      ExternalProvider
+  resource      String // e.g. "calendar_events", "tasks", "sprints", "repo:<id>:commits"
+  lastSyncedAt  DateTime?
+  lastSuccessAt DateTime?
+  lastError     String?
+  cursor        String?
+  etag          String?
+  updatedAt     DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider, resource])
+  @@map("sync_states")
+}
+
+// ─────────────── External snapshots (sync-owned, never written back) ───────────────
+
+model Project {
+  id          String           @id @default(uuid())
+  userId      String
+  provider    ExternalProvider
+  externalId  String
+  name        String
+  key         String?
+  status      String?
+  externalUrl String?
+  syncedAt    DateTime
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sprints     Sprint[]
+  workItems   WorkItem[]
+  timeEntries TimeEntry[]
+
+  @@unique([userId, provider, externalId])
+  @@map("projects")
+}
+
+model Sprint {
+  id          String           @id @default(uuid())
+  userId      String
+  projectId   String
+  provider    ExternalProvider
+  externalId  String
+  name        String
+  goal        String?
+  status      SprintStatus
+  startDate   DateTime?
+  endDate     DateTime?
+  externalUrl String?
+  syncedAt    DateTime
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user        User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project     Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workItems   WorkItem[]
+  snapshots   WorkItemSprintSnapshot[]
+  timeEntries TimeEntry[]
+
+  @@unique([userId, provider, externalId])
+  @@index([userId, status])
+  @@map("sprints")
+}
+
+model WorkItem {
+  id                  String           @id @default(uuid())
+  userId              String
+  projectId           String?
+  sprintId            String?
+  provider            ExternalProvider
+  externalId          String
+  ticketKey           String? // e.g. "ER-431"
+  title               String
+  description         String?
+  status              String?
+  priority            String?
+  assigneeName        String?
+  isAssignedToMe      Boolean          @default(false)
+  externalUrl         String?
+  startDate           DateTime?
+  dueDate             DateTime?
+  externalCompletedAt DateTime?
+  syncedAt            DateTime
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  user         User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project      Project?                 @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  sprint       Sprint?                  @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  local        WorkItemLocal?
+  snapshots    WorkItemSprintSnapshot[]
+  timeEntries  TimeEntry[]
+  journalNotes JournalNote[]
+
+  @@unique([userId, provider, externalId])
+  @@index([userId, ticketKey])
+  @@index([userId, sprintId])
+  @@map("work_items")
+}
+
+// Local-only data about a work item. NEVER pushed to Zoho.
+model WorkItemLocal {
+  workItemId              String    @id
+  notes                   String?
+  labels                  String[]
+  personalStatus          String?
+  personalEstimateMinutes Int?
+  reminderAt              DateTime?
+  updatedAt               DateTime  @updatedAt
+
+  workItem WorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+
+  @@map("work_item_local")
+}
+
+// Records which sprint(s) a work item appeared in, for history and carry-over.
+model WorkItemSprintSnapshot {
+  id         String   @id @default(uuid())
+  workItemId String
+  sprintId   String
+  status     String?
+  capturedAt DateTime @default(now())
+
+  workItem WorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  sprint   Sprint   @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+
+  @@unique([workItemId, sprintId])
+  @@map("work_item_sprint_snapshots")
+}
+
+model CalendarEvent {
+  id                 String              @id @default(uuid())
+  userId             String
+  provider           ExternalProvider
+  externalId         String
+  calendarExternalId String
+  title              String
+  description        String?
+  location           String?
+  meetingUrl         String?
+  organizer          String?
+  attendees          Json?
+  startAt            DateTime
+  endAt              DateTime
+  isAllDay           Boolean             @default(false)
+  status             CalendarEventStatus @default(CONFIRMED)
+  isDeleted          Boolean             @default(false)
+  syncedAt           DateTime
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  user  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  local CalendarEventLocal?
+
+  @@unique([userId, provider, externalId])
+  @@index([userId, startAt])
+  @@map("calendar_events")
+}
+
+// Local categorisation of a meeting. NEVER pushed to Zoho.
+model CalendarEventLocal {
+  calendarEventId String   @id
+  projectId       String?
+  category        String?
+  note            String?
+  reminderEnabled Boolean  @default(true)
+  updatedAt       DateTime @updatedAt
+
+  calendarEvent CalendarEvent @relation(fields: [calendarEventId], references: [id], onDelete: Cascade)
+
+  @@map("calendar_event_local")
+}
+
+model GithubRepository {
+  id         String   @id @default(uuid())
+  userId     String
+  externalId String
+  fullName   String
+  url        String
+  isSelected Boolean  @default(true)
+  syncedAt   DateTime
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activities GithubActivity[]
+
+  @@unique([userId, externalId])
+  @@map("github_repositories")
+}
+
+model GithubActivity {
+  id           String             @id @default(uuid())
+  userId       String
+  repositoryId String
+  externalId   String // commit SHA, "pr:<number>", "review:<id>", ...
+  type         GithubActivityType
+  title        String
+  url          String?
+  occurredAt   DateTime
+  ticketKeys   String[] // keys like "ER-431" extracted from message/branch/title
+  metadata     Json?
+  syncedAt     DateTime
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repository GithubRepository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, externalId])
+  @@index([userId, occurredAt])
+  @@map("github_activities")
+}
+
+// ───────────────────────────── Local work record ─────────────────────────────
+
+model DailyTimesheet {
+  id              String          @id @default(uuid())
+  userId          String
+  date            DateTime        @db.Date
+  dayType         DayType         @default(WORKDAY)
+  expectedMinutes Int
+  loggedMinutes   Int             @default(0) // maintained in the same transaction as entries
+  status          TimesheetStatus @default(DRAFT)
+  submissionNote  String?
+  submittedAt     DateTime?
+  version         Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entries TimeEntry[]
+
+  @@unique([userId, date])
+  @@map("daily_timesheets")
+}
+
+model TimeEntry {
+  id               String            @id @default(uuid())
+  userId           String
+  dailyTimesheetId String
+  projectId        String?
+  sprintId         String?
+  workItemId       String?
+  // Nullable: duration-only entries ("add 1h to ER-431") are allowed.
+  // Overlap checks apply only when both are set.
+  startTime        DateTime?
+  endTime          DateTime?
+  durationMinutes  Int
+  activityType     ActivityType
+  description      String?
+  source           TimeEntrySource
+  externalProvider ExternalProvider?
+  externalId       String?
+  version          Int               @default(0)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timesheet  DailyTimesheet  @relation(fields: [dailyTimesheetId], references: [id], onDelete: Cascade)
+  project    Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  sprint     Sprint?         @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  workItem   WorkItem?       @relation(fields: [workItemId], references: [id], onDelete: SetNull)
+  suggestion WorkSuggestion?
+
+  // Prevents importing the same calendar event twice (NULLs are distinct in Postgres).
+  @@unique([userId, externalProvider, externalId])
+  @@index([userId, startTime])
+  @@index([dailyTimesheetId])
+  @@index([workItemId])
+  @@map("time_entries")
+}
+
+// At most one row per user = at most one active timer. Row is deleted on stop.
+model Timer {
+  id                 String       @id @default(uuid())
+  userId             String       @unique
+  workItemId         String?
+  projectId          String?
+  sprintId           String?
+  activityType       ActivityType
+  description        String?
+  startedAt          DateTime
+  segmentStartedAt   DateTime? // start of the current running segment; null while paused
+  pausedAt           DateTime?
+  accumulatedSeconds Int          @default(0) // seconds, not minutes, to avoid rounding loss across pauses
+  status             TimerStatus
+  updatedAt          DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("timers")
+}
+
+model JournalEntry {
+  id             String   @id @default(uuid())
+  userId         String
+  date           DateTime @db.Date
+  workedOn       String?
+  accomplished   String?
+  pending        String?
+  blockers       String?
+  notes          String?
+  tomorrow       String?
+  lessonsLearned String?
+  version        Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notesItems JournalNote[]
+
+  @@unique([userId, date])
+  @@map("journal_entries")
+}
+
+model JournalNote {
+  id             String   @id @default(uuid())
+  journalEntryId String
+  workItemId     String?
+  content        String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  workItem     WorkItem?    @relation(fields: [workItemId], references: [id], onDelete: SetNull)
+
+  @@index([journalEntryId])
+  @@map("journal_notes")
+}
+
+model WorkSuggestion {
+  id              String           @id @default(uuid())
+  userId          String
+  date            DateTime         @db.Date
+  source          SuggestionSource
+  sourceRef       String // calendar event id, github activity group, gap window key
+  status          SuggestionStatus @default(PENDING)
+  workItemId      String?
+  projectId       String?
+  activityType    ActivityType
+  startTime       DateTime?
+  endTime         DateTime?
+  durationMinutes Int?
+  description     String?
+  evidence        Json // what was OBSERVED; never presented as confirmed work
+  timeEntryId     String?          @unique
+  createdAt       DateTime         @default(now())
+  resolvedAt      DateTime?
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timeEntry TimeEntry? @relation(fields: [timeEntryId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, source, sourceRef])
+  @@index([userId, date, status])
+  @@map("work_suggestions")
+}
+
+model Holiday {
+  id     String   @id @default(uuid())
+  userId String
+  date   DateTime @db.Date
+  name   String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("holidays")
+}
+
+model LeaveRecord {
+  id     String    @id @default(uuid())
+  userId String
+  date   DateTime  @db.Date
+  kind   LeaveKind
+  note   String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("leave_records")
+}
+
+// ───────────────────────────── Notifications ─────────────────────────────
+
+model Notification {
+  id             String             @id @default(uuid())
+  userId         String
+  type           NotificationType
+  // `${userId}:${type}:${sourceEntityId}:${scheduledDate}` — duplicates impossible.
+  idempotencyKey String             @unique
+  title          String
+  body           String
+  payload        Json?
+  scheduledFor   DateTime
+  status         NotificationStatus @default(SCHEDULED)
+  sentAt         DateTime?
+  createdAt      DateTime           @default(now())
+
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries NotificationDelivery[]
+
+  @@index([userId, scheduledFor])
+  @@map("notifications")
+}
+
+model NotificationDelivery {
+  id             String              @id @default(uuid())
+  notificationId String
+  channel        NotificationChannel
+  status         DeliveryStatus
+  error          String?
+  attemptedAt    DateTime            @default(now())
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId])
+  @@map("notification_deliveries")
+}
+
+model NotificationPreference {
+  id      String               @id @default(uuid())
+  userId  String
+  type    NotificationType
+  enabled Boolean              @default(true)
+  channel NotificationChannel? // null = use user_settings.notificationChannel
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@map("notification_preferences")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("push_subscriptions")
+}
+
+model TelegramLink {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  telegramUserId BigInt   @unique
+  telegramChatId BigInt
+  linkedAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("telegram_links")
+}
+
+// One-time linking codes (hash stored, short expiry, single use).
+model TelegramLinkToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("telegram_link_tokens")
+}
+
+// ───────────────────────────── Assistant ─────────────────────────────
+
+model AssistantConversation {
+  id        String           @id @default(uuid())
+  userId    String
+  channel   AssistantChannel
+  title     String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user     User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AssistantMessage[]
+  actions  AssistantActionLog[]
+
+  @@index([userId, updatedAt])
+  @@map("assistant_conversations")
+}
+
+model AssistantMessage {
+  id             String      @id @default(uuid())
+  conversationId String
+  role           MessageRole
+  content        String
+  toolName       String?
+  createdAt      DateTime    @default(now())
+
+  conversation AssistantConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("assistant_messages")
+}
+
+// Both the confirmation state machine AND the AI audit trail.
+// Arguments are schema-validated tool inputs; schemas contain no secret fields.
+model AssistantActionLog {
+  id                   String         @id @default(uuid())
+  userId               String
+  conversationId       String?
+  toolName             String
+  arguments            Json
+  permission           ToolPermission
+  status               ActionStatus
+  confirmationRequired Boolean
+  confirmed            Boolean        @default(false)
+  error                String?
+  expiresAt            DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation AssistantConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@map("assistant_action_logs")
+}
+
+model AiUsageDaily {
+  id           String   @id @default(uuid())
+  userId       String
+  date         DateTime @db.Date
+  requests     Int      @default(0)
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("ai_usage_daily")
+}
+
+// ───────────────────────────── Audit ─────────────────────────────
+
+model AuditLog {
+  id         String     @id @default(uuid())
+  userId     String?
+  actor      AuditActor
+  action     String // e.g. "time_entry.created", "timesheet.submitted", "sync.zoho.completed"
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime   @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}

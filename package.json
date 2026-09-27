@@ -1,0 +1,33 @@
+{
+  "name": "personal-work-os",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*", "apps/*"],
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "npm run dev --workspace @pwos/api & npm run dev --workspace @pwos/web",
+    "dev:api": "npm run dev --workspace @pwos/api",
+    "dev:web": "npm run dev --workspace @pwos/web",
+    "build": "npm run prisma:generate && npm run build --workspace @pwos/web && npm run build --workspace @pwos/api",
+    "start": "node apps/api/dist/migrate.js && node apps/api/dist/server.js",
+    "prisma:generate": "prisma generate",
+    "db:migrate": "tsx apps/api/scripts/migrate.ts",
+    "db:new-migration": "prisma migrate dev --create-only",
+    "db:seed": "tsx apps/api/scripts/seed.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && npm run typecheck --workspace @pwos/web",
+    "lint": "eslint .",
+    "test": "vitest run && npm run test --workspace @pwos/web",
+    "check": "npm run prisma:generate && npm run lint && npm run typecheck && npm run test && npm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^22.0.0",
+    "eslint": "^9.0.0",
+    "globals": "^16.0.0",
+    "prisma": "^7.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^3.0.0"
+  }
+}

@@ -1,0 +1,38 @@
+# Personal Work OS — app + PostgreSQL. Usage: cp .env.example .env && edit && docker compose up -d --build
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pwos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: pwos
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pwos -d pwos"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # Not published to the host by default. Uncomment for local tools / running tests:
+    # ports: ["127.0.0.1:5432:5432"]
+
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://pwos:${POSTGRES_PASSWORD}@db:5432/pwos
+      NODE_ENV: production
+    ports:
+      - "${HOST_PORT:-3000}:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # lets the app reach Ollama running on the host (Linux)
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
