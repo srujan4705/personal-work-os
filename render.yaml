@@ -8,7 +8,7 @@ services:
     name: personal-work-os-api
     runtime: node
     plan: free
-    region: virginia
+    region: singapore
     buildCommand: npm ci --include=dev && npx prisma generate && npm run build --workspace @pwos/api
     startCommand: npm start
     healthCheckPath: /api/v1/health
