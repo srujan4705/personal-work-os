@@ -6,6 +6,7 @@ import { extractMeetingUrl, formatZohoDate, parseZohoDateTime, str } from './zoh
 
 interface RawEvent {
   uid?: string;
+  recurrenceid?: string;
   title?: string;
   description?: string;
   location?: string;
@@ -72,7 +73,7 @@ export class ZohoCalendarApiReader implements ZohoCalendarReader {
     if (!e.uid || !startAt || !endAt) return null;
     const status = (e.status ?? '').toLowerCase();
     return {
-      externalId: e.uid,
+      externalId: e.recurrenceid ? `${e.uid}:${e.recurrenceid}` : e.uid,
       calendarExternalId: calendarId,
       title: e.title?.trim() || '(No title)',
       description: str(e.description),
