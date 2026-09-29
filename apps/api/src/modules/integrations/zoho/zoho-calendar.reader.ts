@@ -23,6 +23,7 @@ export class ZohoCalendarApiReader implements ZohoCalendarReader {
   constructor(
     private readonly http: ReadOnlyHttpClient,
     private readonly host: string,
+    private readonly logShape?: (resource: string, keys: string[]) => void,
   ) {}
 
   private url(path: string) {
@@ -45,7 +46,12 @@ export class ZohoCalendarApiReader implements ZohoCalendarReader {
       const res = await this.http.get<{ events?: RawEvent[] }>(this.url(`/calendars/${encodeURIComponent(calendarId)}/events`), {
         query: { range: JSON.stringify({ start: formatZohoDate(new Date(start)), end: formatZohoDate(new Date(end)) }) },
       });
-      for (const e of res.data?.events ?? []) {
+      const rawEvents = res.data?.events ?? [];
+      if (this.logShape) {
+        const keys = Array.from(new Set(rawEvents.flatMap((e) => Object.keys(e)))).sort();
+        this.logShape(`calendar:${calendarId}`, [`count=${rawEvents.length}`, ...keys]);
+      }
+      for (const e of rawEvents) {
         const mapped = this.map(calendarId, e);
         if (mapped) out.push(mapped);
       }

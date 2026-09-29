@@ -207,10 +207,7 @@ export async function syncZoho(
 
   results.push(
     await runResource(userId, "ZOHO", "calendar_events", async () => {
-      const reader = new ZohoCalendarApiReader(
-        zohoClient(userId, [hosts.calendar]),
-        hosts.calendar,
-      );
+      const reader = new ZohoCalendarApiReader(zohoClient(userId, [hosts.calendar]), hosts.calendar, shapeLogger);
       const todayStr = localDate(now, ctx.tz);
       const from = zonedTimeToUtc(
         addDays(todayStr, -env.ZOHO_SYNC_PAST_DAYS),
