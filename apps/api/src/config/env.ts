@@ -43,6 +43,8 @@ const schema = z.object({
   GITHUB_SYNC_INTERVAL_MINUTES: z.coerce.number().int().min(5).default(60),
   GITHUB_SYNC_DAYS: z.coerce.number().int().min(1).max(90).default(30),
 
+  JIRA_SYNC_INTERVAL_MINUTES: z.coerce.number().int().min(5).default(60),
+
   AI_PROVIDER: z.enum(['none', 'gemini', 'openrouter', 'ollama']).default('none'),
   GEMINI_API_KEY: optionalStr,
   GEMINI_MODEL: z.string().default('gemini-2.5-flash'),

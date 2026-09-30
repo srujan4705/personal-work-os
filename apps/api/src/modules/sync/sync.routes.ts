@@ -6,13 +6,15 @@ import { prisma } from '../../lib/prisma';
 import { randomToken } from '../../lib/crypto';
 import { badRequest } from '../../lib/errors';
 import { cookieSecure, env } from '../../config/env';
-import { syncGithub, syncStatus, syncZoho, zohoOptions } from './sync.service';
+import { syncGithub, syncJira, syncStatus, syncZoho, zohoOptions } from './sync.service';
 import { buildAuthorizeUrl, completeAuthorization, disconnectZoho } from '../integrations/oauth/zoho-oauth';
+import { connectJira, disconnectJira } from '../integrations/oauth/jira-auth';
 import { audit } from '../audit/audit.service';
 
 export const syncRoutes = Router();
 syncRoutes.post('/zoho', limits.sync, async (req, res) => ok(res, await syncZoho(userOf(req).id)));
 syncRoutes.post('/github', limits.sync, async (req, res) => ok(res, await syncGithub(userOf(req).id)));
+syncRoutes.post('/jira', limits.sync, async (req, res) => ok(res, await syncJira(userOf(req).id)));
 syncRoutes.get('/status', async (req, res) => ok(res, await syncStatus(userOf(req).id)));
 
 export const integrationRoutes = Router();
@@ -49,6 +51,19 @@ integrationRoutes.patch('/zoho', async (req, res) => {
 
 integrationRoutes.delete('/zoho', async (req, res) => {
   await disconnectZoho(userOf(req).id);
+  ok(res, { disconnected: true });
+});
+
+/** Verifies the credentials against Jira, then stores them. Nothing is redirected — this is a plain form POST, not OAuth. */
+integrationRoutes.post('/jira/connect', async (req, res) => {
+  const body = parse(z.object({ baseUrl: z.url(), email: z.email(), apiToken: z.string().min(10).max(500) }), req.body);
+  const user = userOf(req);
+  const result = await connectJira(user.id, body.baseUrl, body.email, body.apiToken);
+  ok(res, { connected: true, displayName: result.displayName });
+});
+
+integrationRoutes.delete('/jira', async (req, res) => {
+  await disconnectJira(userOf(req).id);
   ok(res, { disconnected: true });
 });
 

@@ -64,6 +64,7 @@ enum TimerStatus {
 enum ExternalProvider {
   ZOHO
   GITHUB
+  JIRA
 }
 
 enum IntegrationStatus {
@@ -209,6 +210,7 @@ model User {
   sessions                Session[]
   zohoIntegration         ZohoIntegration?
   githubIntegration       GithubIntegration?
+  jiraIntegration         JiraIntegration?
   oauthTokens             OAuthToken[]
   projects                Project[]
   sprints                 Sprint[]
@@ -280,6 +282,7 @@ model UserSettings {
 
   githubSyncEnabled Boolean @default(false)
   zohoSyncEnabled   Boolean @default(false)
+  jiraSyncEnabled   Boolean @default(false)
 
   aiEnabled            Boolean              @default(false)
   aiProvider           AiProvider           @default(NONE)
@@ -315,6 +318,26 @@ model ZohoIntegration {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("zoho_integrations")
+}
+
+// Auth is a per-user Jira Cloud API token (Basic auth: email + token), not OAuth.
+// The token itself is stored encrypted in OAuthToken (provider = JIRA, accessTokenEnc
+// holds "email:apiToken" before encryption), same as every other provider's secret.
+model JiraIntegration {
+  id          String            @id @default(uuid())
+  userId      String            @unique
+  baseUrl     String // e.g. "https://yourcompany.atlassian.net"
+  email       String
+  accountId   String? // Jira's account id for this user, needed for "assigned to me" checks
+  status      IntegrationStatus @default(DISCONNECTED)
+  connectedAt DateTime?
+  lastError   String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("jira_integrations")
 }
 
 model GithubIntegration {

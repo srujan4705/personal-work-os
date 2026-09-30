@@ -23,7 +23,7 @@ const FORBIDDEN = [
   /graphql/i,
 ];
 
-describe.each(['zoho', 'github'])('%s provider code is read-only', (provider) => {
+describe.each(['zoho', 'github', 'jira'])('%s provider code is read-only', (provider) => {
   const files = tsFiles(join(integrationsDir, provider));
 
   it.each(files.length ? files : ['(no files yet)'])('%s has no write/HTTP primitives', (file) => {

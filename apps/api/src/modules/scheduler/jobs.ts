@@ -7,7 +7,7 @@ import { templates } from '../notifications/templates';
 import type { NotificationService } from '../notifications/notification.service';
 import { weeklyReport } from '../reports/report.service';
 import { isDone } from '../work/work.service';
-import { syncGithub, syncZoho, githubConfigured } from '../sync/sync.service';
+import { syncGithub, syncJira, syncZoho, githubConfigured } from '../sync/sync.service';
 import { env } from '../../config/env';
 
 /** A time-of-day job fires once per day, within this window after its configured time. */
@@ -129,9 +129,12 @@ async function runSyncJobs(userId: string, now: Date) {
   if (s.githubSyncEnabled && githubConfigured() && (await syncDue(userId, 'GITHUB', 'repositories', env.GITHUB_SYNC_INTERVAL_MINUTES, now))) {
     await syncGithub(userId, now).catch((err) => logger.warn({ err: err instanceof Error ? err.message : err }, 'scheduler.github_sync_failed'));
   }
+  if (s.jiraSyncEnabled && (await syncDue(userId, 'JIRA', 'tickets_and_sprints', env.JIRA_SYNC_INTERVAL_MINUTES, now))) {
+    await syncJira(userId, now).catch((err) => logger.warn({ err: err instanceof Error ? err.message : err }, 'scheduler.jira_sync_failed'));
+  }
 }
 
-async function syncDue(userId: string, provider: 'ZOHO' | 'GITHUB', resource: string, intervalMinutes: number, now: Date) {
+async function syncDue(userId: string, provider: 'ZOHO' | 'GITHUB' | 'JIRA', resource: string, intervalMinutes: number, now: Date) {
   const state = await prisma.syncState.findUnique({ where: { userId_provider_resource: { userId, provider, resource } } });
   return !state?.lastSyncedAt || now.getTime() - state.lastSyncedAt.getTime() >= intervalMinutes * 60_000;
 }
