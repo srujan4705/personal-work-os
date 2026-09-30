@@ -5,7 +5,7 @@ import { formatMinutes } from '@pwos/shared';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type { Gap } from '../lib/types';
-import { Button, ErrorNote, Field, Loading, PageHeader, Section, Textarea } from '../components/ui';
+import { Button, ErrorNote, Field, Loading, PageHeader, Section, Stat, Textarea } from '../components/ui';
 
 interface CloseOut {
   date: string;
@@ -37,12 +37,12 @@ export function CloseOutPage() {
     <div className="space-y-5">
       <PageHeader title="Close out today" />
       <Section title="Today">
-        <ul className="grid gap-2 text-sm sm:grid-cols-2">
-          <li><span className="font-bold num">{formatMinutes(d.summary.loggedMinutes)}</span> logged of {formatMinutes(d.summary.expectedMinutes)}</li>
-          <li><span className="font-bold num">{d.meetings}</span> meeting(s)</li>
-          <li><span className="font-bold num">{d.tickets.length}</span> ticket(s){d.tickets.length ? `: ${d.tickets.join(', ')}` : ''}</li>
-          <li><span className="font-bold num">{d.githubActivities}</span> GitHub activities observed</li>
-        </ul>
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <Stat accent value={formatMinutes(d.summary.loggedMinutes)} label={`logged of ${formatMinutes(d.summary.expectedMinutes)}`} />
+          <Stat value={d.meetings} label="meeting(s)" />
+          <Stat value={d.tickets.length} label={d.tickets.length ? `ticket(s): ${d.tickets.join(', ')}` : 'ticket(s)'} />
+          <Stat value={d.githubActivities} label="GitHub activities observed" />
+        </div>
         {d.possibleMissingWork.map((g) => <p key={g.start} className="mt-2 text-sm text-suggested">⚠ {g.message}</p>)}
         {d.summary.remainingMinutes > 0 && <p className="mt-2 text-sm text-graphite">{formatMinutes(d.summary.remainingMinutes)} below your expected time. That’s fine if it reflects your day.</p>}
       </Section>

@@ -67,6 +67,7 @@ export const settingsPatchSchema = z
     notificationFallbackChannel: channel.nullable().optional(),
     githubSyncEnabled: z.boolean().optional(),
     zohoSyncEnabled: z.boolean().optional(),
+    jiraSyncEnabled: z.boolean().optional(),
     aiEnabled: z.boolean().optional(),
     aiProvider: z.enum(['NONE', 'GEMINI', 'OPENROUTER', 'OLLAMA']).optional(),
     aiDataMode: z.enum(['LOCAL_ONLY', 'MINIMAL_REMOTE', 'FULL_CONTEXT']).optional(),

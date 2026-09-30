@@ -32,7 +32,7 @@ export function JournalPage() {
       <PageHeader title="Journal"><DateNav date={date} onChange={setDate} /></PageHeader>
       {q.isLoading ? <Loading /> : (
         <>
-          <form className="space-y-4 rounded-lg border border-rule bg-sheet p-4" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
+          <form className="glass panel space-y-4 p-5" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
             <p className="text-sm text-graphite">Your own words about the day. Stored only in Work OS.</p>
             {JOURNAL_SECTIONS.map((s) => (
               <Field key={s} label={JOURNAL_SECTION_LABELS[s]}>
@@ -41,7 +41,7 @@ export function JournalPage() {
             ))}
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="primary" type="submit" disabled={save.isPending}>Save journal</Button>
-              {saved && <span className="text-sm text-confirmed">Saved</span>}
+              {saved && <span className="flex items-center gap-1.5 text-sm font-bold text-confirmed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="h-4 w-4"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>Saved</span>}
               {q.data && <Button type="button" variant="danger" className="ml-auto" onClick={() => window.confirm('Delete this day’s journal?') && remove.mutate()}>Delete day</Button>}
             </div>
             <ErrorNote error={save.error ?? remove.error} />
@@ -52,7 +52,7 @@ export function JournalPage() {
               <Button type="submit">Add note</Button>
             </form>
             {q.data?.items.length ? (
-              <ul className="space-y-1 text-sm">{q.data.items.map((n) => <li key={n.id}><span className="num text-graphite">{new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span> {n.content}</li>)}</ul>
+              <ul className="space-y-1.5 text-sm">{q.data.items.map((n) => <li key={n.id} className="rounded-control bg-ink/[0.03] px-3 py-2"><span className="num text-graphite">{new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span> {n.content}</li>)}</ul>
             ) : <p className="text-sm text-graphite">No notes for this day.</p>}
           </Section>
         </>

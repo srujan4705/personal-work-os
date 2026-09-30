@@ -78,7 +78,7 @@ export function AssistantChat({ conversationId, onConversation }: { conversation
     <div className="flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3" aria-live="polite">
         {status.data && !status.data.available && (
-          <p className="rounded-md bg-rule/50 px-3 py-2 text-xs text-graphite">AI is off ({status.data.reason}) Commands like /today, /tomorrow, /timesheet, /sprint, /summary and /standup still work.</p>
+          <p className="rounded-control border border-ink/[0.07] bg-ink/[0.04] px-3 py-2 text-xs text-graphite">AI is off ({status.data.reason}) Commands like /today, /tomorrow, /timesheet, /sprint, /summary and /standup still work.</p>
         )}
         {status.data?.available && status.data.isRemote && (
           <p className="text-xs text-graphite">Answers use {status.data.provider}. Only the data needed for your question is sent ({status.data.dataMode === 'MINIMAL_REMOTE' ? 'minimal: no emails, descriptions or meeting links' : 'full context'}).</p>
@@ -88,17 +88,17 @@ export function AssistantChat({ conversationId, onConversation }: { conversation
             <p className="text-sm text-graphite">Ask about your work. Changes are only made after you confirm them.</p>
             <div className="flex flex-wrap gap-1.5">
               {SUGGESTED.map((s) => (
-                <button key={s} onClick={() => send(s)} className="rounded-full border border-rule px-2.5 py-1 text-xs hover:border-graphite">{s}</button>
+                <button key={s} onClick={() => send(s)} className="glass rounded-full px-3 py-1 text-xs text-ink/90 transition-colors hover:border-accent-2/60 hover:text-ink">{s}</button>
               ))}
             </div>
           </div>
         )}
         {messages.map((m) => (
-          <div key={m.id} className={m.role === 'USER' ? 'ml-8 rounded-lg bg-ink px-3 py-2 text-sm text-paper' : 'mr-4 whitespace-pre-wrap text-sm'}>{m.content}</div>
+          <div key={m.id} className={m.role === 'USER' ? 'gradient-accent ml-10 rounded-card rounded-br-md px-3.5 py-2 text-sm text-white shadow-[0_8px_20px_-10px_var(--color-accent-1)]' : 'glass mr-6 whitespace-pre-wrap rounded-card rounded-bl-md px-3.5 py-2 text-sm'}>{m.content}</div>
         ))}
         {pending.map((a) => (
-          <div key={a.actionId} className="rounded-lg border-2 border-dashed border-suggested p-3 text-sm">
-            <p className="font-bold">Confirm this change?</p>
+          <div key={a.actionId} className="rounded-card border border-dashed border-suggested/70 bg-suggested/[0.07] p-4 text-sm">
+            <p className="font-display font-semibold text-ink">Confirm this change?</p>
             <p className="mt-1">{a.summary}</p>
             <div className="mt-2 flex gap-2">
               <Button variant="primary" onClick={() => resolve(a.actionId, true)}>Confirm</Button>
@@ -106,11 +106,17 @@ export function AssistantChat({ conversationId, onConversation }: { conversation
             </div>
           </div>
         ))}
-        {busy && <p className="text-sm text-graphite">Thinking…</p>}
-        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+        {busy && (
+          <p className="flex items-center gap-1.5 text-sm text-graphite" aria-label="Thinking">
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent-1 [animation-delay:-0.3s]" />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent-1 [animation-delay:-0.15s]" />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent-2" />
+          </p>
+        )}
+        {error && <p role="alert" className="rounded-control border border-danger/25 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
         <div ref={endRef} />
       </div>
-      <form className="flex gap-2 border-t border-rule p-3" onSubmit={(e) => { e.preventDefault(); void send(text); }}>
+      <form className="flex items-end gap-2 border-t border-rule/70 p-3" onSubmit={(e) => { e.preventDefault(); void send(text); }}>
         <Textarea
           rows={1}
           value={text}

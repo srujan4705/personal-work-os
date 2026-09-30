@@ -26,7 +26,7 @@ export function DraftBox({ initial, kind, params = {}, rows = 8 }: { initial: st
       <div className="flex flex-wrap items-center gap-2">
         <Button onClick={draft} disabled={busy}>{busy ? 'Drafting…' : 'Draft with assistant'}</Button>
         <Button onClick={() => { void navigator.clipboard.writeText(text); setStatus('Copied.'); }}>Copy</Button>
-        {status && <span className="text-xs text-graphite">{status}</span>}
+        {status && <span className="rounded-full bg-ink/[0.06] px-2.5 py-0.5 text-xs text-graphite">{status}</span>}
       </div>
     </div>
   );

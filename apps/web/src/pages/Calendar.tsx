@@ -4,7 +4,7 @@ import { formatMinutes } from '@pwos/shared';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { addDays, prettyDate, shortDate, weekday } from '../lib/date';
-import { Button, Empty, ErrorNote, Input, LabelChip, Loading, PageHeader, Tag } from '../components/ui';
+import { Button, Empty, ErrorNote, Input, LabelChip, Loading, PageHeader, Segmented, Tag } from '../components/ui';
 
 interface CalEvent {
   id: string;
@@ -94,11 +94,7 @@ export function CalendarPage() {
   return (
     <div className="space-y-5">
       <PageHeader title="Calendar">
-        <div className="flex rounded-md border border-rule" role="tablist">
-          {(['agenda', 'day', 'week', 'month'] as View[]).map((v) => (
-            <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} className={`px-3 py-1.5 text-sm capitalize ${view === v ? 'bg-ink font-bold text-paper' : ''}`}>{v}</button>
-          ))}
-        </div>
+        <Segmented label="Calendar view" options={['agenda', 'day', 'week', 'month'] as View[]} value={view} onChange={setView} />
         <Button variant="ghost" onClick={() => setAnchor(addDays(anchor, -step))} aria-label="Previous">‹</Button>
         <Button variant="ghost" onClick={() => setAnchor(today)}>Today</Button>
         <Button variant="ghost" onClick={() => setAnchor(addDays(anchor, step))} aria-label="Next">›</Button>
@@ -112,9 +108,9 @@ export function CalendarPage() {
             const d = addDays(from, i);
             const evs = byDate.get(d) ?? [];
             return (
-              <button key={d} onClick={() => { setAnchor(d); setView('day'); }} className={`min-h-20 rounded-md border p-1 text-left ${d === today ? 'border-ink' : 'border-rule'} bg-sheet`}>
-                <span className="font-bold num">{Number(d.slice(8))}</span>
-                {evs.slice(0, 3).map((e) => <span key={e.id} className="block truncate">{e.isAllDay ? '' : e.startTime} {e.title}</span>)}
+              <button key={d} onClick={() => { setAnchor(d); setView('day'); }} className={`panel-hover min-h-24 rounded-control p-1.5 text-left ${d === today ? 'glass border-accent-2/60 gradient-ring' : 'glass'}`}>
+                <span className={`mb-0.5 block font-display font-semibold num ${d === today ? 'gradient-text' : 'text-ink'}`}>{Number(d.slice(8))}</span>
+                {evs.slice(0, 3).map((e) => <span key={e.id} className="mb-0.5 block truncate rounded-[0.35rem] bg-accent-1/[0.1] px-1 text-ink/90"><span className="num text-graphite">{e.isAllDay ? '' : e.startTime}</span> {e.title}</span>)}
                 {evs.length > 3 && <span className="text-graphite">+{evs.length - 3} more</span>}
               </button>
             );
@@ -124,9 +120,9 @@ export function CalendarPage() {
         <Empty title="No meetings in this range">If you expected some, run a Zoho sync from Settings.</Empty>
       ) : (
         [...byDate.entries()].map(([d, evs]) => (
-          <section key={d} className="rounded-lg border border-rule bg-sheet px-4 py-2">
-            <h2 className="pt-1 font-bold">{d === today ? `Today, ${shortDate(d)}` : prettyDate(d)}</h2>
-            <ul className="divide-y divide-rule">{evs.map((e) => <EventRow key={e.id} e={e} />)}</ul>
+          <section key={d} className="glass panel px-5 py-3">
+            <h2 className="pt-1 font-display font-semibold text-ink">{d === today ? `Today, ${shortDate(d)}` : prettyDate(d)}</h2>
+            <ul className="divide-y divide-rule/70">{evs.map((e) => <EventRow key={e.id} e={e} />)}</ul>
           </section>
         ))
       )}

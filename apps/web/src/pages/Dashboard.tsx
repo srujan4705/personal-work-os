@@ -35,11 +35,11 @@ export function SuggestionList({ suggestions }: { suggestions: Suggestion[] }) {
   });
   if (!suggestions.length) return <p className="text-sm text-graphite">No suggestions waiting. Meetings and GitHub activity show up here after a sync.</p>;
   return (
-    <ul className="divide-y divide-rule">
+    <ul className="divide-y divide-rule/70">
       {suggestions.map((s) => (
-        <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+        <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
           <div className="min-w-0">
-            <p className="flex items-center gap-2 text-sm"><LabelChip label="SUGGESTED" /><span className="truncate font-bold">{s.description ?? titleCase(s.activityType)}</span></p>
+            <p className="flex items-center gap-2 text-sm"><LabelChip label="SUGGESTED" /><span className="truncate font-bold text-ink">{s.description ?? titleCase(s.activityType)}</span></p>
             <p className="text-xs text-graphite num">
               {s.startTime ? `${s.startTime}–${s.endTime} · ` : ''}{s.durationMinutes ? formatMinutes(s.durationMinutes) : 'duration unknown'} · from {s.source.toLowerCase()}
             </p>
@@ -71,23 +71,23 @@ export function DashboardPage() {
     <div className="space-y-5">
       <header>
         <p className="text-sm text-graphite">{prettyDate(d.date)}</p>
-        <h1 className="text-2xl font-bold tracking-tight">{d.greeting}, {d.name}.</h1>
+        <h1 className="font-display text-[1.7rem] font-semibold tracking-tight text-ink">{d.greeting}, {d.name}.</h1>
       </header>
 
-      <section aria-label="Today at a glance" className="rounded-lg border border-rule bg-sheet p-4">
+      <section aria-label="Today at a glance" className="glass panel p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <p className="text-lg">
-            <span className="text-3xl font-bold num">{formatMinutes(d.timesheet.loggedMinutes)}</span>
+            <span className="font-display text-3xl font-semibold num gradient-text">{formatMinutes(d.timesheet.loggedMinutes)}</span>
             <span className="text-graphite"> logged of {formatMinutes(d.timesheet.expectedMinutes)}</span>
             {d.timesheet.remainingMinutes > 0 && <span className="text-graphite"> · {formatMinutes(d.timesheet.remainingMinutes)} to go</span>}
           </p>
           <div className="flex items-center gap-2">
             <Tag tone={d.timesheet.status === 'SUBMITTED' ? 'good' : 'neutral'}>{d.timesheet.status === 'DRAFT' ? 'Draft' : titleCase(d.timesheet.status)}</Tag>
             {d.timesheet.dayType !== 'WORKDAY' && <Tag tone="warn">{titleCase(d.timesheet.dayType)}</Tag>}
-            <Link to="/timesheet" className="text-sm font-bold underline-offset-2 hover:underline">Open timesheet</Link>
+            <Link to="/timesheet" className="text-sm font-bold text-accent-1 underline-offset-2 hover:underline">Open timesheet</Link>
           </div>
         </div>
-        <div className="mt-2 h-1.5 rounded-full bg-rule"><div className="h-full rounded-full bg-confirmed" style={{ width: `${pct}%` }} /></div>
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-ink/[0.08]"><div className="gradient-accent h-full rounded-full transition-[width] duration-500 ease-out" style={{ width: `${pct}%` }} /></div>
         <div className="mt-4">
           <DayStrip
             items={(timeline.data?.items ?? []).map((i) => ({ id: i.id, label: i.kind === 'MEETING' ? 'EXTERNAL' : i.label, start: i.time, end: i.endTime, title: i.title }))}
@@ -99,9 +99,9 @@ export function DashboardPage() {
       </section>
 
       {d.showCloseOut && d.timesheet.status === 'DRAFT' && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ink px-4 py-3 text-paper">
+        <div className="gradient-accent flex flex-wrap items-center justify-between gap-2 rounded-card px-4 py-3.5 text-white shadow-[0_10px_28px_-10px_var(--color-accent-1)]">
           <p className="text-sm">Your working day is nearly over. Review and close it out.</p>
-          <Link to="/close-out" className="rounded-md bg-paper px-3 py-1.5 text-sm font-bold text-ink">Close out today</Link>
+          <Link to="/close-out" className="rounded-control bg-white/95 px-3.5 py-1.5 text-sm font-bold text-ink transition-colors hover:bg-white">Close out today</Link>
         </div>
       )}
 
@@ -111,9 +111,9 @@ export function DashboardPage() {
           <Section title="Waiting for review" action={<span className="text-xs text-graphite">{d.suggestions.length} suggestion(s)</span>}>
             <SuggestionList suggestions={d.suggestions} />
             {d.possibleMissingWork.length > 0 && (
-              <div className="mt-3 space-y-1 border-t border-rule pt-3">
+              <div className="mt-3 space-y-1 border-t border-rule/70 pt-3">
                 {d.possibleMissingWork.map((g) => (
-                  <p key={g.start} className="text-sm"><span className="font-bold">{g.message}</span>{g.observed.length > 0 && <span className="text-graphite"> Observed: {g.observed.map((o) => `${o.at} ${o.label}`).join('; ')}</span>}</p>
+                  <p key={g.start} className="text-sm"><span className="font-bold text-ink">{g.message}</span>{g.observed.length > 0 && <span className="text-graphite"> Observed: {g.observed.map((o) => `${o.at} ${o.label}`).join('; ')}</span>}</p>
                 ))}
               </div>
             )}
@@ -122,7 +122,7 @@ export function DashboardPage() {
         <div className="min-w-0 space-y-5">
           <Section title="Meetings today">
             {d.nextMeeting && (
-              <p className="mb-2 text-sm">Next: <span className="font-bold">{d.nextMeeting.startTime} {d.nextMeeting.title}</span>{d.nextMeeting.meetingUrl && <> · <a className="underline" href={d.nextMeeting.meetingUrl} target="_blank" rel="noreferrer noopener">Join</a></>}</p>
+              <p className="mb-2 text-sm">Next: <span className="font-bold text-ink">{d.nextMeeting.startTime} {d.nextMeeting.title}</span>{d.nextMeeting.meetingUrl && <> · <a className="text-accent-1 underline-offset-2 hover:underline" href={d.nextMeeting.meetingUrl} target="_blank" rel="noreferrer noopener">Join</a></>}</p>
             )}
             {d.meetings.length ? (
               <ul className="space-y-1 text-sm">{d.meetings.map((m) => <li key={m.id} className="flex gap-2"><span className="num text-graphite">{m.startTime}</span><span className="truncate">{m.title}</span></li>)}</ul>
@@ -130,9 +130,9 @@ export function DashboardPage() {
           </Section>
           <Section title="Work">
             <dl className="grid grid-cols-2 gap-y-2 text-sm">
-              <dt className="text-graphite">Sprint</dt><dd>{d.currentSprint ? <Link className="font-bold hover:underline" to="/sprints">{d.currentSprint.name}</Link> : 'None active'}</dd>
-              <dt className="text-graphite">Open tickets</dt><dd className="num"><Link className="hover:underline" to="/work">{d.openTickets}</Link></dd>
-              <dt className="text-graphite">Journal</dt><dd><Link className="hover:underline" to="/journal">{d.journal.status === 'FILLED' ? 'Written' : d.journal.status === 'STARTED' ? 'Started' : 'Not started'}</Link></dd>
+              <dt className="text-graphite">Sprint</dt><dd>{d.currentSprint ? <Link className="font-bold text-accent-1 hover:underline" to="/sprints">{d.currentSprint.name}</Link> : 'None active'}</dd>
+              <dt className="text-graphite">Open tickets</dt><dd className="num"><Link className="text-accent-1 hover:underline" to="/work">{d.openTickets}</Link></dd>
+              <dt className="text-graphite">Journal</dt><dd><Link className="text-accent-1 hover:underline" to="/journal">{d.journal.status === 'FILLED' ? 'Written' : d.journal.status === 'STARTED' ? 'Started' : 'Not started'}</Link></dd>
               <dt className="text-graphite">Zoho</dt><dd>{titleCase(d.integrations.zoho)}</dd>
               <dt className="text-graphite">GitHub</dt><dd>{titleCase(d.integrations.github)}</dd>
             </dl>

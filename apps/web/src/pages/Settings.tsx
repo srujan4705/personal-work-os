@@ -3,17 +3,18 @@ import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { titleCase } from '@pwos/shared';
 import { api, errorMessage } from '../lib/api';
-import { Button, ErrorNote, Field, Input, Loading, PageHeader, Section, Select, Tag } from '../components/ui';
+import { Button, ErrorNote, Field, Input, Loading, PageHeader, Section, Select, Tag, buttonClass } from '../components/ui';
 
 type Settings = Record<string, unknown> & {
   timezone: string; workStartTime: string; workEndTime: string; expectedDailyMinutes: number; workingDays: number[];
   lunchStart: string | null; lunchEnd: string | null; version: number; notificationChannel: string; notificationFallbackChannel: string | null;
   aiEnabled: boolean; aiProvider: string; aiDataMode: string; aiConfirmationPolicy: string; aiDailyRequestLimit: number; assistantName: string;
-  zohoSyncEnabled: boolean; githubSyncEnabled: boolean; allowTimesheetReopen: boolean;
+  zohoSyncEnabled: boolean; githubSyncEnabled: boolean; jiraSyncEnabled: boolean; allowTimesheetReopen: boolean;
 };
 interface SyncStatus {
   zoho: { configured: boolean; status: string; portalId: string | null; sprintsTeamId: string | null; lastError: string | null; dataCenter: string };
   github: { configured: boolean; status: string; login: string | null; lastError: string | null };
+  jira: { status: string; baseUrl: string | null; email: string | null; lastError: string | null };
   states: { provider: string; resource: string; lastSuccessAt: string | null; lastError: string | null }[];
 }
 
@@ -45,6 +46,7 @@ export function SettingsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [link, setLink] = useState<{ code: string; deepLink: string | null; instructions: string } | null>(null);
   const [zohoOpts, setZohoOpts] = useState<{ portals: { id: string; name: string }[]; teams: { id: string; name: string }[] } | null>(null);
+  const [jiraForm, setJiraForm] = useState({ baseUrl: '', email: '', apiToken: '' });
   useEffect(() => { if (s.data) setForm(s.data); }, [s.data]);
 
   const run = useMutation({ mutationFn: async (fn: () => Promise<unknown>) => fn(), onSuccess: () => qc.invalidateQueries(), onError: (e) => setMsg(errorMessage(e)) });
@@ -52,7 +54,7 @@ export function SettingsPage() {
   const set = (k: string, v: unknown) => setForm({ ...form, [k]: v });
 
   const save = () => {
-    const keys = ['timezone', 'workStartTime', 'workEndTime', 'expectedDailyMinutes', 'workingDays', 'lunchStart', 'lunchEnd', 'allowTimesheetReopen', 'meetingReminderEnabled', 'meetingReminderMinutes', 'notificationChannel', 'notificationFallbackChannel', 'aiEnabled', 'aiProvider', 'aiDataMode', 'aiConfirmationPolicy', 'aiDailyRequestLimit', 'assistantName', 'zohoSyncEnabled', 'githubSyncEnabled', 'version', ...REMINDERS.flatMap(([a, b]) => [a, b])];
+    const keys = ['timezone', 'workStartTime', 'workEndTime', 'expectedDailyMinutes', 'workingDays', 'lunchStart', 'lunchEnd', 'allowTimesheetReopen', 'meetingReminderEnabled', 'meetingReminderMinutes', 'notificationChannel', 'notificationFallbackChannel', 'aiEnabled', 'aiProvider', 'aiDataMode', 'aiConfirmationPolicy', 'aiDailyRequestLimit', 'assistantName', 'zohoSyncEnabled', 'githubSyncEnabled', 'jiraSyncEnabled', 'version', ...REMINDERS.flatMap(([a, b]) => [a, b])];
     const body = Object.fromEntries(keys.map((k) => [k, form[k] === '' ? null : form[k]]));
     setMsg(null);
     run.mutate(() => api.patch('/settings', body).then(() => setMsg('Settings saved.')));
@@ -76,8 +78,8 @@ export function SettingsPage() {
   return (
     <div className="space-y-5">
       <PageHeader title="Settings"><Button variant="primary" onClick={save}>Save settings</Button></PageHeader>
-      {params.get('zoho') === 'connected' && <p className="rounded-md bg-confirmed/15 px-3 py-2 text-sm text-confirmed">Zoho connected (read-only). Pick your portal and team below, then sync.</p>}
-      {msg && <p role="status" className="rounded-md bg-rule/60 px-3 py-2 text-sm">{msg}</p>}
+      {params.get('zoho') === 'connected' && <p className="rounded-control border border-confirmed/30 bg-confirmed/10 px-3 py-2 text-sm text-confirmed">Zoho connected (read-only). Pick your portal and team below, then sync.</p>}
+      {msg && <p role="status" className="rounded-control border border-accent-2/30 bg-accent-2/[0.08] px-3 py-2 text-sm text-ink">{msg}</p>}
 
       <Section title="Working hours">
         <div className="grid gap-3 sm:grid-cols-3">
@@ -142,7 +144,7 @@ export function SettingsPage() {
             {sync.data?.zoho.lastError && <p className="text-danger">{sync.data.zoho.lastError}</p>}
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {sync.data?.zoho.status === 'DISCONNECTED' || !sync.data ? (
-                sync.data?.zoho.configured ? <a className="rounded-md bg-ink px-3 py-1.5 font-bold text-paper" href="/api/v1/integrations/zoho/connect">Connect Zoho (read-only)</a> : <span className="text-graphite">Add ZOHO_CLIENT_ID / SECRET to the server first (MANUAL_SETUP.md, section H).</span>
+                sync.data?.zoho.configured ? <a className={buttonClass('primary')} href="/api/v1/integrations/zoho/connect">Connect Zoho (read-only)</a> : <span className="text-graphite">Add ZOHO_CLIENT_ID / SECRET to the server first (MANUAL_SETUP.md, section H).</span>
               ) : (
                 <>
                   <Button variant="primary" onClick={() => run.mutate(() => api.post('/sync/zoho').then(() => setMsg('Zoho sync finished.')))}>Sync now</Button>
@@ -174,6 +176,26 @@ export function SettingsPage() {
               </details>
             )}
           </div>
+          <div>
+            <p className="flex flex-wrap items-center gap-2"><b>Jira</b><Tag tone={sync.data?.jira?.status === 'CONNECTED' ? 'good' : sync.data?.jira?.status === 'ERROR' ? 'bad' : 'neutral'}>{titleCase(sync.data?.jira?.status ?? 'DISCONNECTED')}</Tag>{sync.data?.jira?.email && <span className="text-graphite">as {sync.data.jira?.email} · read-only</span>}</p>
+            {sync.data?.jira?.lastError && <p className="text-danger">{sync.data.jira?.lastError}</p>}
+            {(sync.data?.jira?.status ?? 'DISCONNECTED') === 'DISCONNECTED' ? (
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                <Field label="Jira site URL"><Input placeholder="https://yourcompany.atlassian.net" value={jiraForm.baseUrl} onChange={(e) => setJiraForm({ ...jiraForm, baseUrl: e.target.value })} /></Field>
+                <Field label="Jira email"><Input type="email" value={jiraForm.email} onChange={(e) => setJiraForm({ ...jiraForm, email: e.target.value })} /></Field>
+                <Field label="API token" hint="Create one at id.atlassian.com/manage-profile/security/api-tokens"><Input type="password" value={jiraForm.apiToken} onChange={(e) => setJiraForm({ ...jiraForm, apiToken: e.target.value })} /></Field>
+                <div className="sm:col-span-3">
+                  <Button variant="primary" onClick={() => run.mutate(() => api.post('/integrations/jira/connect', jiraForm).then(() => { setJiraForm({ baseUrl: '', email: '', apiToken: '' }); setMsg('Jira connected.'); }))}>Connect Jira (read-only)</Button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Button variant="primary" onClick={() => run.mutate(() => api.post('/sync/jira').then(() => setMsg('Jira sync finished.')))}>Sync now</Button>
+                <label className="flex items-center gap-1"><input type="checkbox" checked={!!form.jiraSyncEnabled} onChange={(e) => set('jiraSyncEnabled', e.target.checked)} />Automatic sync</label>
+                <Button variant="danger" onClick={() => window.confirm('Disconnect Jira? Synced data stays; no more updates.') && run.mutate(() => api.del('/integrations/jira'))}>Disconnect</Button>
+              </div>
+            )}
+          </div>
           {!!sync.data?.states.length && (
             <details><summary className="cursor-pointer">Sync details</summary>
               <ul className="mt-1 space-y-0.5 text-xs">{sync.data.states.map((st) => <li key={st.provider + st.resource}><b>{st.provider}</b> {st.resource}: {st.lastError ? <span className="text-danger">{st.lastError}</span> : st.lastSuccessAt ? `ok ${new Date(st.lastSuccessAt).toLocaleString()}` : 'never'}</li>)}</ul>
@@ -200,7 +222,7 @@ export function SettingsPage() {
 
       <Section title="Your data">
         <div className="flex flex-wrap gap-2">
-          <a className="rounded-md border border-rule bg-sheet px-3 py-1.5 text-sm font-bold" href="/api/v1/exports/all.json">Download everything (JSON)</a>
+          <a className={buttonClass('quiet')} href="/api/v1/exports/all.json">Download everything (JSON)</a>
         </div>
       </Section>
 

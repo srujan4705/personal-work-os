@@ -30,7 +30,13 @@ export function TimerWidget() {
     <div className="space-y-2">
       {t ? (
         <div className="flex flex-wrap items-center gap-3">
-          <span className={`text-2xl font-bold num ${t.status === 'PAUSED' ? 'text-graphite' : ''}`}>{clock(t.elapsedSeconds + offset)}</span>
+          <span className="flex items-center gap-2.5">
+            <span className={`relative flex h-2.5 w-2.5 ${t.status === 'PAUSED' ? 'opacity-50' : ''}`} aria-hidden="true">
+              {t.status === 'RUNNING' && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-2 opacity-60" />}
+              <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${t.status === 'RUNNING' ? 'bg-accent-2' : 'bg-graphite'}`} />
+            </span>
+            <span className={`font-display text-3xl font-semibold num ${t.status === 'PAUSED' ? 'text-graphite' : 'gradient-text'}`}>{clock(t.elapsedSeconds + offset)}</span>
+          </span>
           <span className="text-sm text-graphite">{t.ticketKey ?? titleCase(t.activityType)}{t.status === 'PAUSED' ? ' · paused' : ''}</span>
           <div className="flex gap-1.5">
             {t.status === 'RUNNING' ? <Button onClick={() => act.mutate('pause')}>Pause</Button> : <Button onClick={() => act.mutate('resume')}>Resume</Button>}

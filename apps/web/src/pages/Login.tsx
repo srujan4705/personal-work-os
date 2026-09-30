@@ -30,15 +30,16 @@ export function LoginPage() {
 
   return (
     <main className="grid min-h-dvh place-items-center px-4">
-      <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-lg border border-rule bg-sheet p-6">
-        <div>
-          <h1 className="text-xl font-bold">Work OS</h1>
+      <form onSubmit={submit} className="glass panel w-full max-w-sm space-y-5 p-8">
+        <div className="space-y-1.5">
+          <span className="gradient-accent grid h-10 w-10 place-items-center rounded-control text-base font-bold text-white shadow-[0_8px_20px_-8px_var(--color-accent-1)]">W</span>
+          <h1 className="font-display text-xl font-semibold tracking-tight text-ink">Work OS</h1>
           <p className="text-sm text-graphite">Your own record of what you worked on.</p>
         </div>
         <Field label="Email"><Input type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
         <Field label="Password"><Input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
-        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-        <Button variant="primary" type="submit" disabled={busy} className="w-full">{busy ? 'Signing in…' : 'Sign in'}</Button>
+        {error && <p role="alert" className="rounded-control border border-danger/25 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
+        <Button variant="primary" type="submit" disabled={busy} className="w-full py-2">{busy ? 'Signing in…' : 'Sign in'}</Button>
       </form>
     </main>
   );

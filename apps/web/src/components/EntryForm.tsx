@@ -76,7 +76,7 @@ export function EntryForm({ initial, submitLabel, onSubmit, onCancel }: { initia
           <div className="flex gap-1">
             <Input className="w-full num" placeholder="1h" {...register('duration')} aria-invalid={!!formState.errors.duration} />
             {['15m', '30m', '1h'].map((d) => (
-              <button type="button" key={d} onClick={() => setValue('duration', d, { shouldValidate: true })} className="rounded-md border border-rule px-2 text-xs hover:border-graphite">{d}</button>
+              <button type="button" key={d} onClick={() => setValue('duration', d, { shouldValidate: true })} className="glass rounded-control px-2 text-xs font-bold num text-graphite transition-colors hover:border-accent-2/60 hover:text-ink">{d}</button>
             ))}
           </div>
         </Field>

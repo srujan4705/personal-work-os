@@ -57,17 +57,17 @@ export function TimesheetPage() {
       <ol className="grid grid-cols-7 gap-1" aria-label="This week">
         {week.data?.days.map((d) => (
           <li key={d.date}>
-            <button onClick={() => setDate(d.date)} className={`w-full rounded-md border px-1 py-1.5 text-center text-xs ${d.date === date ? 'border-ink bg-ink text-paper' : 'border-rule bg-sheet hover:border-graphite'}`}>
+            <button onClick={() => setDate(d.date)} className={`w-full rounded-control px-1 py-2 text-center text-xs transition-all duration-200 ${d.date === date ? 'gradient-accent text-white shadow-[0_8px_20px_-8px_var(--color-accent-1)]' : 'glass text-graphite hover:border-accent-2/50 hover:text-ink'}`}>
               <span className="block">{weekday(d.date)}</span>
-              <span className="block font-bold num">{d.loggedMinutes ? formatMinutes(d.loggedMinutes) : '–'}</span>
+              <span className="block font-display font-semibold num">{d.loggedMinutes ? formatMinutes(d.loggedMinutes) : '–'}</span>
               {d.status === 'SUBMITTED' && <span className="block text-[10px]">✓ submitted</span>}
             </button>
           </li>
         ))}
       </ol>
 
-      <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rule bg-sheet p-4">
-        <p className="num"><span className="text-2xl font-bold">{formatMinutes(summary.loggedMinutes)}</span><span className="text-graphite"> logged · {formatMinutes(summary.expectedMinutes)} expected · {formatMinutes(summary.remainingMinutes)} remaining</span></p>
+      <section className="glass panel flex flex-wrap items-center justify-between gap-3 p-5">
+        <p className="num"><span className="font-display text-3xl font-semibold gradient-text">{formatMinutes(summary.loggedMinutes)}</span><span className="text-graphite"> logged · {formatMinutes(summary.expectedMinutes)} expected · {formatMinutes(summary.remainingMinutes)} remaining</span></p>
         <div className="flex flex-wrap items-center gap-2">
           <Tag tone={editable ? 'neutral' : 'good'}>{titleCase(timesheet.status)}</Tag>
           <Select value={timesheet.dayType} disabled={!editable} onChange={(e) => run.mutate(() => api.post(`${base}/day-type`, { dayType: e.target.value }))} aria-label="Day type">
@@ -80,7 +80,8 @@ export function TimesheetPage() {
             </>
           ) : <Button onClick={() => run.mutate(() => api.post(`${base}/reopen`))}>Reopen</Button>}
         </div>
-        <p className="w-full text-xs text-graphite">Submitting saves the day in Work OS only. Nothing is sent to Zoho.</p>
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-ink/[0.08]"><div className="gradient-accent h-full rounded-full transition-[width] duration-500 ease-out" style={{ width: `${summary.expectedMinutes ? Math.min(100, (summary.loggedMinutes / summary.expectedMinutes) * 100) : 0}%` }} /></div>
+        <p className="w-full text-xs text-graphite">Submitting saves the day in Work OS only. Nothing is sent to Jira or Zoho.</p>
       </section>
       <ErrorNote error={run.error} />
 
@@ -92,9 +93,9 @@ export function TimesheetPage() {
       >
         {issues.filter((i) => !i.entryIds.length).map((i) => <p key={i.code} className="mb-2 text-sm text-suggested">⚠ {i.message}</p>)}
         {!entries.length ? <Empty title="No time logged for this day">Add an entry above, start the timer, or accept a suggestion.</Empty> : (
-          <ul className="divide-y divide-rule">
+          <ul className="divide-y divide-rule/70">
             {entries.map((e) => (
-              <li key={e.id} className="py-2.5">
+              <li key={e.id} className="-mx-2 rounded-control px-2 py-2.5 transition-colors hover:bg-ink/[0.03]">
                 {editing === e.id ? (
                   <EntryForm
                     submitLabel="Save changes"
@@ -108,13 +109,13 @@ export function TimesheetPage() {
                     <div className="min-w-0 flex-1">
                       <p className="flex flex-wrap items-center gap-2">
                         <span className="w-24 text-sm text-graphite num">{e.startTime ? `${e.startTime}–${e.endTime ?? ''}` : 'no time'}</span>
-                        <span className="font-bold">{e.ticketKey ?? titleCase(e.activityType)}</span>
+                        <span className="font-display font-semibold text-ink">{e.ticketKey ?? titleCase(e.activityType)}</span>
                         {e.ticketTitle && <span className="truncate text-sm text-graphite">{e.ticketTitle}</span>}
                       </p>
                       <p className="ml-26 text-sm text-graphite sm:ml-[6.5rem]">{titleCase(e.activityType)}{e.description ? ` · ${e.description}` : ''}{e.source !== 'MANUAL' ? ` · via ${SOURCE_LABEL[e.source] ?? titleCase(e.source)}` : ''}</p>
                       {issuesFor(e.id).map((i, k) => <p key={k} className={`text-xs sm:ml-[6.5rem] ${i.level === 'error' ? 'text-danger' : 'text-suggested'}`}>{i.level === 'error' ? '✖' : '⚠'} {i.message}</p>)}
                     </div>
-                    <span className="font-bold num">{formatMinutes(e.durationMinutes)}</span>
+                    <span className="font-display font-semibold num text-ink">{formatMinutes(e.durationMinutes)}</span>
                     <LabelChip label="CONFIRMED" />
                     {editable && (
                       <div className="flex gap-0.5">

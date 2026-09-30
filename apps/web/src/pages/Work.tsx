@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatMinutes, titleCase } from '@pwos/shared';
 import { api } from '../lib/api';
-import { Button, Empty, ErrorNote, Field, Input, LabelChip, Loading, PageHeader, Section, Select, Tag, Textarea } from '../components/ui';
+import { Button, Empty, ErrorNote, Field, Input, LabelChip, Loading, PageHeader, Section, Select, Stat, Tag, Textarea } from '../components/ui';
 
 interface WorkItem {
   id: string;
@@ -34,13 +34,13 @@ export function WorkPage() {
         <Select value={assigned} onChange={(e) => setAssigned(e.target.value)} aria-label="Assigned"><option value="me">Assigned to me</option><option value="all">Everything synced</option></Select>
       </PageHeader>
       {list.isLoading ? <Loading /> : list.error ? <ErrorNote error={list.error} /> : !list.data?.items.length ? (
-        <Empty title="No tickets here">Tickets appear after Zoho is connected and synced (Settings → Integrations).</Empty>
+        <Empty title="No tickets here">Tickets appear after Jira or Zoho is connected and synced (Settings → Integrations).</Empty>
       ) : (
-        <ul className="divide-y divide-rule rounded-lg border border-rule bg-sheet">
+        <ul className="glass panel divide-y divide-rule/70 overflow-hidden">
           {list.data.items.map((w) => (
-            <li key={w.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
+            <li key={w.id} className="group flex flex-wrap items-center gap-3 px-5 py-3 transition-colors hover:bg-accent-1/[0.05]">
               <Link to={`/work/${w.id}`} className="min-w-0 flex-1">
-                <p className="truncate"><span className="font-bold">{w.ticketKey ?? '—'}</span> {w.title}</p>
+                <p className="truncate"><span className="font-display font-semibold text-ink transition-colors group-hover:text-accent-1">{w.ticketKey ?? '—'}</span> {w.title}</p>
                 <p className="text-xs text-graphite">{[w.projectName, w.sprintName, w.dueDate && `due ${w.dueDate}`].filter(Boolean).join(' · ')}</p>
               </Link>
               {w.personalStatus && <Tag tone="warn">{w.personalStatus}</Tag>}
@@ -92,16 +92,16 @@ export function TicketPage() {
     <div className="space-y-5">
       <PageHeader title={<>{t.workItem.ticketKey} {t.workItem.title}</>}>
         <LabelChip label="EXTERNAL" />
-        {t.workItem.externalUrl && <a href={t.workItem.externalUrl} target="_blank" rel="noreferrer noopener" className="text-sm font-bold underline">Open in Zoho</a>}
+        {t.workItem.externalUrl && <a href={t.workItem.externalUrl} target="_blank" rel="noreferrer noopener" className="text-sm font-bold text-accent-1 underline-offset-2 hover:underline">Open original</a>}
       </PageHeader>
       <p className="text-sm text-graphite">{[t.workItem.status, t.workItem.priority, t.workItem.projectName, t.workItem.sprintName].filter(Boolean).join(' · ')}</p>
-      <section className="flex flex-wrap gap-6 rounded-lg border border-rule bg-sheet p-4 text-sm">
-        <p><span className="text-2xl font-bold num">{formatMinutes(t.totalLoggedMinutes)}</span> logged</p>
-        <p><span className="text-2xl font-bold num">{t.sessions}</span> sessions</p>
-        <p className="self-end text-graphite">{t.firstWorkDate ? `${t.firstWorkDate} → ${t.lastWorkDate}` : 'No time logged yet'}</p>
+      <section className="glass panel grid grid-cols-2 gap-2 p-5 sm:grid-cols-3">
+        <Stat accent value={formatMinutes(t.totalLoggedMinutes)} label="logged" />
+        <Stat value={t.sessions} label="sessions" />
+        <Stat value={<span className="text-base">{t.firstWorkDate ? `${t.firstWorkDate} → ${t.lastWorkDate}` : '—'}</span>} label={t.firstWorkDate ? 'first → last worked' : 'No time logged yet'} />
       </section>
       <div className="grid gap-5 md:grid-cols-2">
-        <Section title="Your notes (never sent to Zoho)">
+        <Section title="Your notes (never sent to Jira or Zoho)">
           <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
             <Field label="Notes"><Textarea rows={4} value={local.notes} onChange={(e) => setLocal({ ...local, notes: e.target.value })} /></Field>
             <Field label="Labels" hint="Comma separated"><Input value={local.labels} onChange={(e) => setLocal({ ...local, labels: e.target.value })} /></Field>

@@ -5,7 +5,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { addDays } from '../lib/date';
 import { Bars, DayColumns } from '../components/Bars';
-import { Button, ErrorNote, Input, Loading, PageHeader, Section } from '../components/ui';
+import { Button, ErrorNote, Input, Loading, PageHeader, Section, Segmented, Stat, StatGrid, buttonClass } from '../components/ui';
 import { DraftBox } from './Drafts';
 
 interface Report {
@@ -41,26 +41,24 @@ export function ReportsPage() {
   return (
     <div className="space-y-5">
       <PageHeader title="Reports">
-        <div className="flex rounded-md border border-rule" role="tablist">
-          {(['daily', 'weekly', 'monthly'] as Period[]).map((p) => <button key={p} role="tab" aria-selected={period === p} onClick={() => setPeriod(p)} className={`px-3 py-1.5 text-sm capitalize ${period === p ? 'bg-ink font-bold text-paper' : ''}`}>{p}</button>)}
-        </div>
+        <Segmented label="Report period" options={['daily', 'weekly', 'monthly'] as Period[]} value={period} onChange={setPeriod} />
         <Button variant="ghost" onClick={() => setAnchor(addDays(anchor, -step))} aria-label="Previous">‹</Button>
         <Input type="date" value={anchor} onChange={(e) => e.target.value && setAnchor(e.target.value)} aria-label="Report date" />
         <Button variant="ghost" onClick={() => setAnchor(addDays(anchor, step))} aria-label="Next">›</Button>
-        {r && <a className="rounded-md border border-rule bg-sheet px-3 py-1.5 text-sm font-bold" href={`/api/v1/exports/time-entries.csv?from=${r.range.from}&to=${r.range.to}`}>Export CSV</a>}
+        {r && <a className={buttonClass('quiet')} href={`/api/v1/exports/time-entries.csv?from=${r.range.from}&to=${r.range.to}`}>Export CSV</a>}
       </PageHeader>
       {q.isLoading ? <Loading /> : q.error ? <ErrorNote error={q.error} /> : r && (
         <>
-          <section className="rounded-lg border border-rule bg-sheet p-4">
-            <p className="text-sm text-graphite num">{r.range.from} → {r.range.to}</p>
-            <div className="mt-2 flex flex-wrap gap-x-8 gap-y-2 text-sm">
-              <p><span className="text-2xl font-bold num">{formatMinutes(r.loggedMinutes)}</span> logged of {formatMinutes(r.expectedMinutes)}</p>
-              <p><span className="text-2xl font-bold num">{r.daysWorked}</span> day(s) with time</p>
-              <p><span className="text-2xl font-bold num">{formatMinutes(r.averageMinutesPerWorkedDay)}</span> average per day worked</p>
-              <p><span className="text-2xl font-bold num">{r.ticketsWorked}</span> tickets · {r.ticketsCompleted.length} completed</p>
-              <p><span className="text-2xl font-bold num">{r.github.total}</span> GitHub activities (observed)</p>
-            </div>
-            {r.missingMinutes > 0 && <p className="mt-2 text-sm text-suggested">{formatMinutes(r.missingMinutes)} below expected.</p>}
+          <section className="glass panel p-5">
+            <p className="mb-3 text-sm text-graphite num">{r.range.from} → {r.range.to}</p>
+            <StatGrid>
+              <Stat accent value={formatMinutes(r.loggedMinutes)} label={`logged of ${formatMinutes(r.expectedMinutes)}`} />
+              <Stat value={r.daysWorked} label="day(s) with time" />
+              <Stat value={formatMinutes(r.averageMinutesPerWorkedDay)} label="average per day worked" />
+              <Stat value={r.ticketsWorked} label={`tickets · ${r.ticketsCompleted.length} completed`} />
+              <Stat value={r.github.total} label="GitHub activities (observed)" />
+            </StatGrid>
+            {r.missingMinutes > 0 && <p className="mt-3 text-sm text-suggested">{formatMinutes(r.missingMinutes)} below expected.</p>}
           </section>
           <div className="grid gap-5 md:grid-cols-2">
             {period !== 'daily' && <Section title="Time by day"><DayColumns days={r.byDay} /></Section>}

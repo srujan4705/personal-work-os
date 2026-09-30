@@ -12,7 +12,7 @@ describe('web components', () => {
     expect(screen.getByText('Confirmed')).toBeInTheDocument();
     expect(screen.getByText('Suggested').className).toContain('border-dashed');
     expect(screen.getByText('Observed').className).toContain('border-dotted');
-    expect(screen.getByText('From Zoho')).toBeInTheDocument();
+    expect(screen.getByText('Synced')).toBeInTheDocument(); // external items now come from Jira as well as Zoho
   });
   it('draws the day ledger with a legend', () => {
     render(<DayStrip items={[{ id: '1', label: 'CONFIRMED', start: '10:00', end: '11:00', title: 'ER-1' }, { id: '2', label: 'OBSERVED', start: '12:00', end: null, title: 'commit' }]} />);
