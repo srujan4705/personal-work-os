@@ -6,7 +6,6 @@ import { extractMeetingUrl, formatZohoDate, parseZohoDateTime, str } from './zoh
 
 interface RawEvent {
   uid?: string;
-  recurrenceid?: string;
   title?: string;
   description?: string;
   location?: string;
@@ -33,9 +32,15 @@ export class ZohoCalendarApiReader implements ZohoCalendarReader {
 
   async listCalendars(): Promise<ExternalCalendar[]> {
     const res = await this.http.get<{ calendars?: { uid?: string; name?: string; isdefault?: boolean; category?: string }[] }>(this.url('/calendars'));
-    return (res.data?.calendars ?? [])
-      .filter((c) => c.uid && c.category !== 'holiday')
-      .map((c) => ({ externalId: c.uid!, name: c.name ?? 'Calendar', isPrimary: !!c.isdefault }));
+    const raw = res.data?.calendars ?? [];
+    if (this.logShape) {
+      // Unlike every other shapeLogger call (field names only, never values), this one logs
+      // calendar NAMES on purpose — the question being diagnosed is literally "which calendars
+      // does the API say exist", and these are the user's own calendar names, already visible
+      // to them in Zoho's own UI, not any other person's data.
+      this.logShape('calendar:list', raw.map((c) => `${c.name ?? '?'} (category=${c.category ?? '-'}, default=${!!c.isdefault})`));
+    }
+    return raw.filter((c) => c.uid && c.category !== 'holiday').map((c) => ({ externalId: c.uid!, name: c.name ?? 'Calendar', isPrimary: !!c.isdefault }));
   }
 
   /** Zoho limits the event range per request, so the window is fetched in chunks. */
@@ -73,7 +78,7 @@ export class ZohoCalendarApiReader implements ZohoCalendarReader {
     if (!e.uid || !startAt || !endAt) return null;
     const status = (e.status ?? '').toLowerCase();
     return {
-      externalId: e.recurrenceid ? `${e.uid}:${e.recurrenceid}` : e.uid,
+      externalId: e.uid,
       calendarExternalId: calendarId,
       title: e.title?.trim() || '(No title)',
       description: str(e.description),
