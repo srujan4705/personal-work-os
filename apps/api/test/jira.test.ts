@@ -3,7 +3,6 @@ import { prisma } from '../src/lib/prisma';
 import { loginAs } from './helpers';
 
 const BASE = 'https://acme.atlassian.net';
-const GATEWAY = 'https://api.atlassian.com/ex/jira/cloud-abc-123';
 const ME = 'acc-me';
 
 const issue = (id: string, key: string, projectId: string, projectKey: string, extra: Record<string, unknown> = {}) => ({
