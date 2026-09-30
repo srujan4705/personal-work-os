@@ -133,8 +133,12 @@ export class JiraApiReader implements SprintProvider {
         const res = await this.http.get<{ values?: RawSprint[] }>(this.agile(`/board/${board.id}/sprint`), { query: { state, maxResults: 50 } });
         sprints = res.data?.values ?? [];
       } catch (err) {
-        // A board can still refuse sprint queries (e.g. sprints disabled). Skip it rather than fail the whole sync.
-        if (err instanceof ProviderHttpError && (err.status === 400 || err.status === 403 || err.status === 404)) continue;
+        // A board can still refuse sprint queries — e.g. sprints disabled (400/403/404), or a
+        // documented Atlassian platform bug where a scoped token's own *:jira-software scopes
+        // are rejected on /rest/agile/1.0/* with 401 "scope does not match" even though the
+        // scope is genuinely present (community.developer.atlassian.com/t/100456). Skip the
+        // board rather than fail ticket sync over something outside this app's control.
+        if (err instanceof ProviderHttpError && [400, 401, 403, 404].includes(err.status)) continue;
         throw err;
       }
       for (const s of sprints) {

@@ -57,7 +57,10 @@ function fakeJira(calls: { method: string; host: string; path: string; query: UR
       case '/rest/agile/1.0/board/6/sprint':
         return json({ errorMessages: ['The board does not support sprints'] }, 400);
       case '/rest/agile/1.0/board/7/sprint':
-        return json({ errorMessages: ['Sprints are disabled'] }, 400);
+        // A documented Atlassian platform bug: a *:jira-software scope genuinely present on a
+        // scoped token is still rejected here with 401 "scope does not match" — real-world case,
+        // not hypothetical. Must be skipped like any other refusing board, not fail the sync.
+        return json({ code: 401, message: 'Unauthorized; scope does not match' }, 401);
       case '/rest/agile/1.0/sprint/77/issue':
         return json({
           total: 3,
