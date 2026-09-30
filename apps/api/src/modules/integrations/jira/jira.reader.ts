@@ -41,6 +41,21 @@ export interface JiraIssue {
   item: ExternalWorkItem;
 }
 
+const AGILE_SCOPE_BUG_STATUSES = [400, 401, 403, 404];
+
+/**
+ * True for the family of failures where a board/sprint/agile-endpoint call can't be honoured:
+ * a genuinely unsupported board (400/403/404), or the documented Atlassian platform bug where a
+ * scoped token's own *:jira-software scopes are rejected on ANY /rest/agile/1.0/* call with 401
+ * "scope does not match" even though the scope is genuinely present on the token
+ * (community.developer.atlassian.com/t/100456). Every agile call in this reader is wrapped with
+ * this check — the bug has been observed hitting board discovery itself, not just per-board
+ * sprint listing, so no single call site can be assumed safe.
+ */
+function isTolerableAgileFailure(err: unknown): boolean {
+  return err instanceof ProviderHttpError && AGILE_SCOPE_BUG_STATUSES.includes(err.status);
+}
+
 /**
  * READ-ONLY Jira Cloud provider.
  * Issue search uses GET /rest/api/3/search/jql (the old /rest/api/3/search was removed by
@@ -123,22 +138,26 @@ export class JiraApiReader implements SprintProvider {
   /** Active/future/closed sprints across the project's scrum boards. Kanban boards have no sprints and are skipped. */
   async listSprints(projectId: string, status?: ExternalSprint['status']): Promise<ExternalSprint[]> {
     const state = status ? { UPCOMING: 'future', ACTIVE: 'active', COMPLETED: 'closed' }[status] : undefined;
-    const boards = await this.http.get<{ values?: RawBoard[] }>(this.agile('/board'), { query: { projectKeyOrId: projectId, type: 'scrum', maxResults: 50 } });
+    let boardValues: RawBoard[];
+    try {
+      const boards = await this.http.get<{ values?: RawBoard[] }>(this.agile('/board'), { query: { projectKeyOrId: projectId, type: 'scrum', maxResults: 50 } });
+      boardValues = boards.data?.values ?? [];
+    } catch (err) {
+      if (isTolerableAgileFailure(err)) return []; // no sprint data for this project — tickets sync regardless
+      throw err;
+    }
     const out: ExternalSprint[] = [];
     const seen = new Set<string>();
-    for (const board of boards.data?.values ?? []) {
+    for (const board of boardValues) {
       if (!board.id || (board.type && board.type !== 'scrum')) continue;
       let sprints: RawSprint[];
       try {
         const res = await this.http.get<{ values?: RawSprint[] }>(this.agile(`/board/${board.id}/sprint`), { query: { state, maxResults: 50 } });
         sprints = res.data?.values ?? [];
       } catch (err) {
-        // A board can still refuse sprint queries — e.g. sprints disabled (400/403/404), or a
-        // documented Atlassian platform bug where a scoped token's own *:jira-software scopes
-        // are rejected on /rest/agile/1.0/* with 401 "scope does not match" even though the
-        // scope is genuinely present (community.developer.atlassian.com/t/100456). Skip the
-        // board rather than fail ticket sync over something outside this app's control.
-        if (err instanceof ProviderHttpError && [400, 401, 403, 404].includes(err.status)) continue;
+        // See isTolerableAgileFailure — a board can genuinely refuse sprint queries, or hit the
+        // same platform bug. Skip the board rather than fail ticket sync over either.
+        if (isTolerableAgileFailure(err)) continue;
         throw err;
       }
       for (const s of sprints) {
@@ -162,16 +181,24 @@ export class JiraApiReader implements SprintProvider {
   async listSprintItems(projectId: string, sprintId: string): Promise<ExternalWorkItem[]> {
     const out: ExternalWorkItem[] = [];
     for (let startAt = 0; startAt < 1000; startAt += PAGE) {
-      const res = await this.http.get<{ issues?: RawIssue[]; total?: number }>(this.agile(`/sprint/${encodeURIComponent(sprintId)}/issue`), {
-        query: { fields: ISSUE_FIELDS, startAt, maxResults: PAGE },
-      });
-      const page = res.data?.issues ?? [];
+      let page: RawIssue[];
+      let total: number | undefined;
+      try {
+        const res = await this.http.get<{ issues?: RawIssue[]; total?: number }>(this.agile(`/sprint/${encodeURIComponent(sprintId)}/issue`), {
+          query: { fields: ISSUE_FIELDS, startAt, maxResults: PAGE },
+        });
+        page = res.data?.issues ?? [];
+        total = res.data?.total;
+      } catch (err) {
+        if (isTolerableAgileFailure(err)) return out; // the sprint itself still gets recorded; just its item list stays empty
+        throw err;
+      }
       for (const i of page) {
         const mapped = this.map(i, sprintId);
         // Keep items from other projects on a shared board out of this project's sprint.
         if (mapped && mapped.project.externalId === projectId) out.push(mapped.item);
       }
-      if (page.length < PAGE || (res.data?.total !== undefined && startAt + page.length >= res.data.total)) break;
+      if (page.length < PAGE || (total !== undefined && startAt + page.length >= total)) break;
     }
     return out;
   }

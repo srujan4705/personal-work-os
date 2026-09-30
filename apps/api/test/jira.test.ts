@@ -49,9 +49,11 @@ function fakeJira(calls: { method: string; host: string; path: string; query: UR
           ? json({ issues: [issue('103', 'OPS-9', '20000', 'OPS')] })
           : json({ issues: [issue('101', 'ER-1', '10000', 'ER'), issue('102', 'ER-2', '10000', 'ER', { resolutiondate: '2026-09-20T10:00:00.000+0000' })], nextPageToken: 'page-2' });
       case '/rest/agile/1.0/board':
-        return u.searchParams.get('projectKeyOrId') === '10000'
-          ? json({ values: [{ id: 5, type: 'scrum' }, { id: 6, type: 'kanban' }] })
-          : json({ values: [{ id: 7, type: 'scrum' }] });
+        // ER's board discovery succeeds normally. OPS's board discovery itself hits the exact
+        // real-world case reported against this app: the scope-mismatch bug on the VERY FIRST
+        // agile call for a project, before any per-board loop even starts.
+        if (u.searchParams.get('projectKeyOrId') === '10000') return json({ values: [{ id: 5, type: 'scrum' }, { id: 6, type: 'kanban' }] });
+        return json({ code: 401, message: 'Unauthorized; scope does not match' }, 401);
       case '/rest/agile/1.0/board/5/sprint':
         return json({ values: [{ id: 77, name: 'Sprint 12', state: 'active', goal: 'Ship it', startDate: '2026-09-21T00:00:00.000Z', endDate: '2026-10-05T00:00:00.000Z' }] });
       case '/rest/agile/1.0/board/6/sprint':
