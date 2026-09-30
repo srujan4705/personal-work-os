@@ -48,18 +48,32 @@ export interface JiraIssue {
  * nextPageToken and returns no total. Boards/sprints use the Agile API v1.0.
  */
 export class JiraApiReader implements SprintProvider {
+  /**
+   * `siteUrl` (e.g. "https://yourcompany.atlassian.net") is only ever used to build links
+   * a human clicks. Every actual API call goes through `apiBase`
+   * ("https://api.atlassian.com/ex/jira/{cloudId}") — scoped API tokens (the "Create API
+   * token with scopes" kind, prefix ATATT) are rejected by the site's own domain with a bare
+   * "Client must be authenticated" 401 and only work through this gateway. See
+   * developer.atlassian.com/cloud/jira/software/rest and resolveCloudId() in jira-auth.ts,
+   * which resolves `apiBase` before this reader is ever constructed.
+   */
   constructor(
     private readonly http: ReadOnlyHttpClient,
-    private readonly baseUrl: string, // e.g. "https://yourcompany.atlassian.net"
+    private readonly siteUrl: string,
+    private readonly apiBase: string,
     private readonly meAccountId: string,
   ) {}
 
   private api(path: string) {
-    return `${this.baseUrl}/rest/api/3${path}`;
+    return `${this.apiBase}/rest/api/3${path}`;
   }
 
   private agile(path: string) {
-    return `${this.baseUrl}/rest/agile/1.0${path}`;
+    return `${this.apiBase}/rest/agile/1.0${path}`;
+  }
+
+  private browse(key: string) {
+    return `${this.siteUrl}/browse/${encodeURIComponent(key)}`;
   }
 
   private map(i: RawIssue, sprintId: string | null): JiraIssue | null {
@@ -71,7 +85,7 @@ export class JiraApiReader implements SprintProvider {
         name: f.project.name ?? f.project.key ?? 'Project',
         key: f.project.key ?? null,
         status: null,
-        externalUrl: f.project.key ? `${this.baseUrl}/browse/${encodeURIComponent(f.project.key)}` : null,
+        externalUrl: f.project.key ? this.browse(f.project.key) : null,
       },
       item: {
         externalId: i.id,
@@ -84,7 +98,7 @@ export class JiraApiReader implements SprintProvider {
         priority: f.priority?.name ?? null,
         assigneeName: f.assignee?.displayName ?? null,
         isAssignedToMe: !!f.assignee?.accountId && f.assignee.accountId === this.meAccountId,
-        externalUrl: i.key ? `${this.baseUrl}/browse/${encodeURIComponent(i.key)}` : null,
+        externalUrl: i.key ? this.browse(i.key) : null,
         startDate: null,
         dueDate: f.duedate ? new Date(f.duedate) : null,
         completedAt: f.resolutiondate ? new Date(f.resolutiondate) : null,
@@ -159,9 +173,20 @@ export class JiraApiReader implements SprintProvider {
   }
 }
 
+/**
+ * Resolves the "cloud ID" a scoped API token must route through. Undocumented in the main
+ * REST API reference but confirmed by Atlassian's own Teamwork Graph docs and support
+ * threads: GET {siteUrl}/_edge/tenant_info, no auth required, returns { cloudId }.
+ */
+export async function resolveJiraCloudId(http: ReadOnlyHttpClient, siteUrl: string): Promise<string> {
+  const res = await http.get<{ cloudId?: string }>(`${siteUrl}/_edge/tenant_info`);
+  if (!res.data?.cloudId) throw new Error('Could not resolve this Jira site\'s cloud ID — check the site URL.');
+  return res.data.cloudId;
+}
+
 /** Verifies the base URL + credentials and returns the account id needed for "assigned to me" checks. Used once, during Connect. */
-export async function verifyJiraCredentials(http: ReadOnlyHttpClient, baseUrl: string): Promise<{ accountId: string; displayName: string }> {
-  const res = await http.get<{ accountId?: string; displayName?: string }>(`${baseUrl}/rest/api/3/myself`);
+export async function verifyJiraCredentials(http: ReadOnlyHttpClient, apiBase: string): Promise<{ accountId: string; displayName: string }> {
+  const res = await http.get<{ accountId?: string; displayName?: string }>(`${apiBase}/rest/api/3/myself`);
   if (!res.data?.accountId) throw new Error('Jira did not return an account id — check the base URL, email and API token.');
   return { accountId: res.data.accountId, displayName: res.data.displayName ?? 'Jira user' };
 }

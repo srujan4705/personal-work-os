@@ -360,8 +360,8 @@ export async function syncJira(userId: string, now = new Date()): Promise<SyncOu
 
   results.push(
     await runResource(userId, 'JIRA', 'tickets_and_sprints', async () => {
-      const { http, baseUrl, accountId } = await getJiraClient(userId);
-      const reader = new JiraApiReader(http, baseUrl, accountId);
+      const { http, siteUrl, apiBase, accountId } = await getJiraClient(userId);
+      const reader = new JiraApiReader(http, siteUrl, apiBase, accountId);
       const projectIds = new Map<string, string>(); // Jira project id -> local project id
       let count = 0;
 

@@ -3,6 +3,7 @@ import { prisma } from '../src/lib/prisma';
 import { loginAs } from './helpers';
 
 const BASE = 'https://acme.atlassian.net';
+const GATEWAY = 'https://api.atlassian.com/ex/jira/cloud-abc-123';
 const ME = 'acc-me';
 
 const issue = (id: string, key: string, projectId: string, projectKey: string, extra: Record<string, unknown> = {}) => ({
@@ -21,15 +22,26 @@ const issue = (id: string, key: string, projectId: string, projectKey: string, e
 });
 
 /** A fake Jira Cloud that answers the documented endpoints, including the awkward real-world cases. */
-function fakeJira(calls: { method: string; path: string; query: URLSearchParams }[]) {
+function fakeJira(calls: { method: string; host: string; path: string; query: URLSearchParams }[]) {
   return vi.fn(async (input: URL | string, init?: RequestInit) => {
     const u = new URL(String(input));
-    calls.push({ method: init?.method ?? 'GET', path: u.pathname, query: u.searchParams });
+    calls.push({ method: init?.method ?? 'GET', host: u.hostname, path: u.pathname, query: u.searchParams });
     const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
     const auth = new Headers(init?.headers).get('Authorization') ?? '';
-    if (auth !== `Basic ${Buffer.from('me@acme.com:good-token-123').toString('base64')}`) return json({ message: 'Unauthorized' }, 401);
 
-    switch (u.pathname) {
+    // The site domain itself answers ONLY the cloud-ID lookup, unauthenticated — exactly like
+    // real Jira Cloud. A scoped token calling the site directly for anything else (the bug
+    // this test would have caught) gets Jira's real, unhelpful 401 with no JSON body.
+    if (u.hostname === 'acme.atlassian.net') {
+      if (u.pathname === '/_edge/tenant_info') return json({ cloudId: 'cloud-abc-123' });
+      return new Response('Client must be authenticated to access this resource.', { status: 401 });
+    }
+
+    if (auth !== `Basic ${Buffer.from('me@acme.com:good-token-123').toString('base64')}`) return json({ message: 'Unauthorized' }, 401);
+    if (!u.pathname.startsWith('/ex/jira/cloud-abc-123')) return json({ message: 'Unknown gateway path' }, 404);
+    const path = u.pathname.slice('/ex/jira/cloud-abc-123'.length);
+
+    switch (path) {
       case '/rest/api/3/myself':
         return json({ accountId: ME, displayName: 'Me' });
       case '/rest/api/3/search/jql':
@@ -63,7 +75,7 @@ function fakeJira(calls: { method: string; path: string; query: URLSearchParams 
 }
 
 describe('Jira integration', () => {
-  const calls: { method: string; path: string; query: URLSearchParams }[] = [];
+  const calls: { method: string; host: string; path: string; query: URLSearchParams }[] = [];
   beforeEach(() => {
     calls.length = 0;
     vi.stubGlobal('fetch', fakeJira(calls));
@@ -110,8 +122,15 @@ describe('Jira integration', () => {
 
     // Only GET requests, only to the Jira site, never the removed /rest/api/3/search endpoint.
     expect(calls.every((c) => c.method === 'GET')).toBe(true);
-    expect(calls.some((c) => c.path === '/rest/api/3/search')).toBe(false);
-    expect(calls.find((c) => c.path === '/rest/api/3/search/jql')?.query.get('jql')).toContain('assignee = currentUser()');
+    expect(calls.some((c) => c.path.endsWith('/rest/api/3/search'))).toBe(false);
+    // The one thing this whole test exists to prove: every real API call goes through the
+    // gateway (api.atlassian.com), never the site domain directly — that's the exact bug
+    // ("Client must be authenticated to access this resource") a scoped token hits otherwise.
+    const gatewayCalls = calls.filter((c) => c.path.includes('/rest/'));
+    expect(gatewayCalls.length).toBeGreaterThan(0);
+    expect(gatewayCalls.every((c) => c.host === 'api.atlassian.com')).toBe(true);
+    expect(calls.some((c) => c.host === 'acme.atlassian.net' && c.path === '/_edge/tenant_info')).toBe(true);
+    expect(calls.find((c) => c.path.endsWith('/rest/api/3/search/jql'))?.query.get('jql')).toContain('assignee = currentUser()');
 
     const status = await s.get('/sync/status');
     expect(status.body.data.jira).toMatchObject({ status: 'CONNECTED', baseUrl: BASE, email: 'me@acme.com', lastError: null });
