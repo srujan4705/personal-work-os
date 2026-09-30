@@ -28,7 +28,7 @@ export function AssistantChat({ conversationId, onConversation }: { conversation
     if (!conversationId) {
       setMessages([]);
       setPending([]);
-      return;
+      return undefined;
     }
     api.get<{ messages: Msg[]; pendingActions: Pending[] }>(`/assistant/conversations/${conversationId}`)
       .then((c) => {
@@ -36,9 +36,12 @@ export function AssistantChat({ conversationId, onConversation }: { conversation
         setPending(c.pendingActions);
       })
       .catch(() => onConversation(null));
+    return undefined;
   }, [conversationId, onConversation]);
 
-  useEffect(() => endRef.current?.scrollIntoView({ block: 'end' }), [messages, pending]);
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: 'end' });
+  }, [messages, pending]);
 
   const send = async (message: string) => {
     if (!message.trim() || busy) return;
