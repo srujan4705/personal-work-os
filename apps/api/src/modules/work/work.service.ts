@@ -20,7 +20,7 @@ export async function listSprints(userId: string, status?: 'UPCOMING' | 'ACTIVE'
     take: 100,
   });
   return rows.map((s) => ({
-    id: s.id, name: s.name, goal: s.goal, status: s.status, projectName: s.project.name,
+    id: s.id, name: s.name, goal: s.goal, status: s.status, projectName: s.project.name, provider: s.provider,
     startDate: s.startDate ? dbToDate(s.startDate) : null, endDate: s.endDate ? dbToDate(s.endDate) : null,
     workItemCount: s._count.workItems, externalUrl: s.externalUrl,
   }));

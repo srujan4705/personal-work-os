@@ -65,6 +65,7 @@ enum ExternalProvider {
   ZOHO
   GITHUB
   JIRA
+  MANUAL
 }
 
 enum IntegrationStatus {
@@ -118,6 +119,7 @@ enum NotificationType {
   SYNC_FAILURE
   UNLOGGED_WORK
   JOURNAL_REMINDER
+  PUNCH_REMINDER
 }
 
 enum NotificationChannel {
@@ -276,6 +278,10 @@ model UserSettings {
   meetingReminderMinutes      Int     @default(15)
   morningSummaryEnabled       Boolean @default(false)
   morningSummaryTime          String  @default("08:30")
+  // Punch reminders — a fixed schedule (08:15/08:30/08:45 punch-in, 17:30/17:45/18:00 punch-out,
+  // 20:00 end-of-day confirmation), not user-configurable times, since they mirror one specific
+  // HRMS portal's expected punch windows rather than a general-purpose reminder.
+  punchReminderEnabled        Boolean @default(false)
 
   notificationChannel         NotificationChannel  @default(TELEGRAM)
   notificationFallbackChannel NotificationChannel? @default(EMAIL)
