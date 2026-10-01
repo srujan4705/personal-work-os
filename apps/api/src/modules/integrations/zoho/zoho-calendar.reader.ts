@@ -6,6 +6,7 @@ import { extractMeetingUrl, formatZohoDate, parseZohoDateTime, str } from './zoh
 
 interface RawEvent {
   uid?: string;
+  recurrenceid?: string;
   title?: string;
   description?: string;
   location?: string;
@@ -78,7 +79,11 @@ export class ZohoCalendarApiReader implements ZohoCalendarReader {
     if (!e.uid || !startAt || !endAt) return null;
     const status = (e.status ?? '').toLowerCase();
     return {
-      externalId: e.uid,
+      // Zoho gives every occurrence of a recurring event the SAME uid and a distinct
+      // recurrenceid — without this, every day's occurrence upserts onto one row and only
+      // whichever one synced last survives. This exact bug has regressed once already in this
+      // codebase; see the paired test for how it's now guarded against.
+      externalId: e.recurrenceid ? `${e.uid}:${e.recurrenceid}` : e.uid,
       calendarExternalId: calendarId,
       title: e.title?.trim() || '(No title)',
       description: str(e.description),
